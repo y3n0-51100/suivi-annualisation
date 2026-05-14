@@ -1,0 +1,1304 @@
+##############################################################################
+#  🏠 DASHBOARD MAISON — LOVELACE YAML
+#  Généré pour Home Assistant sur Umbrel (http://192.168.1.58:8123)
+#
+#  ┌─────────────────────────────────────────────────────────────────────┐
+#  │  INSTALLATION HACS REQUISE                                          │
+#  │  Allez dans HACS → Frontend et installez :                          │
+#  │  • Mushroom Cards       → piitaya/lovelace-mushroom                 │
+#  │  • Mini Media Player    → kalkih/mini-media-player                  │
+#  │  • card-mod             → thomasloven/lovelace-card-mod             │
+#  │  • Mini Graph Card      → kalkih/lovelace-mini-graph-card           │
+#  │  • Spotify Lovelace     → custom-cards/spotify-card                 │
+#  └─────────────────────────────────────────────────────────────────────┘
+#
+#  COMMENT IMPORTER CE DASHBOARD :
+#  1. Paramètres → Tableaux de bord → ⋮ → Éditeur brut
+#  2. Coller ce YAML entier
+#  3. Sauvegarder
+#
+#  PERSONNALISATION :
+#  Recherchez "# →" pour trouver toutes les lignes à adapter
+##############################################################################
+
+title: Ma Maison
+background: "linear-gradient(135deg, #0d0d1a 0%, #1a1a2e 50%, #16213e 100%)"
+
+views:
+
+  ##########################################################################
+  # ══════════════════════════════════════════════════════════════════════ #
+  #  VUE 1 — ACCUEIL                                                       #
+  # ══════════════════════════════════════════════════════════════════════ #
+  ##########################################################################
+  - title: Accueil
+    path: accueil
+    icon: mdi:home-heart
+    background: >-
+      center / cover no-repeat fixed
+      url('https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1920&q=80')
+    cards:
+
+      # ── En-tête animé ───────────────────────────────────────────────────
+      - type: custom:mushroom-title-card
+        title: "Bienvenue chez vous"
+        subtitle: "{{ now().strftime('%A %d %B — %H:%M') }}"
+        card_mod:
+          style: |
+            ha-card {
+              background: rgba(10, 10, 30, 0.65) !important;
+              backdrop-filter: blur(24px);
+              -webkit-backdrop-filter: blur(24px);
+              border: 1px solid rgba(255,255,255,0.12);
+              border-radius: 24px;
+              padding: 8px 4px;
+              animation: slideDown 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+            }
+            @keyframes slideDown {
+              from { opacity: 0; transform: translateY(-20px); }
+              to   { opacity: 1; transform: translateY(0); }
+            }
+            .title {
+              font-size: 2em !important;
+              font-weight: 800 !important;
+              background: linear-gradient(135deg, #ffffff 0%, #a78bfa 60%, #60a5fa 100%);
+              -webkit-background-clip: text;
+              -webkit-text-fill-color: transparent;
+              background-clip: text;
+            }
+            .subtitle {
+              color: rgba(255,255,255,0.55) !important;
+              font-size: 0.95em !important;
+              text-transform: capitalize;
+            }
+
+      # ── Résumé maison (température, humidité, météo) ────────────────────
+      - type: horizontal-stack
+        cards:
+          - type: custom:mushroom-template-card
+            primary: "{{ states('sensor.temperature_salon') | round(1) }}°"  # → capteur température
+            secondary: "Salon"
+            icon: mdi:thermometer
+            icon_color: >-
+              {{ 'red' if states('sensor.temperature_salon')|float(0) > 24
+                 else ('blue' if states('sensor.temperature_salon')|float(0) < 18
+                 else 'green') }}
+            card_mod:
+              style: &glass_card |
+                ha-card {
+                  background: rgba(10,10,30,0.6) !important;
+                  backdrop-filter: blur(20px);
+                  -webkit-backdrop-filter: blur(20px);
+                  border: 1px solid rgba(255,255,255,0.1);
+                  border-radius: 20px;
+                  transition: transform 0.3s ease, box-shadow 0.3s ease;
+                  animation: fadeUp 0.7s ease;
+                }
+                ha-card:hover {
+                  transform: translateY(-4px);
+                  box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+                }
+                @keyframes fadeUp {
+                  from { opacity: 0; transform: translateY(12px); }
+                  to   { opacity: 1; transform: translateY(0); }
+                }
+
+          - type: custom:mushroom-template-card
+            primary: "{{ states('sensor.humidity_salon') | round(0) }}%"  # → capteur humidité
+            secondary: "Humidité"
+            icon: mdi:water-percent
+            icon_color: blue
+            card_mod:
+              style: *glass_card
+
+          - type: custom:mushroom-weather-card
+            entity: weather.home                                            # → entité météo
+            show_conditions: true
+            show_humidity: false
+            show_wind_speed: false
+            card_mod:
+              style: *glass_card
+
+      # ── Accès rapide lumières ────────────────────────────────────────────
+      - type: custom:mushroom-title-card
+        title: "Lumières"
+        card_mod:
+          style: |
+            ha-card { background: transparent !important; box-shadow: none !important; }
+            .title {
+              color: rgba(255,255,255,0.5) !important;
+              font-size: 0.8em !important;
+              letter-spacing: 4px;
+              text-transform: uppercase;
+            }
+
+      - type: horizontal-stack
+        cards:
+          - type: custom:mushroom-light-card
+            entity: light.salon                  # → votre lumière salon
+            name: Salon
+            show_brightness_control: true
+            show_color_control: true
+            collapsible_controls: true
+            card_mod:
+              style: &light_card |
+                ha-card {
+                  background: rgba(10,10,30,0.6) !important;
+                  backdrop-filter: blur(20px);
+                  border: 1px solid rgba(251,191,36,0.15);
+                  border-radius: 20px;
+                  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                }
+                ha-card:hover {
+                  transform: scale(1.03);
+                  box-shadow: 0 8px 32px rgba(251,191,36,0.25);
+                  border-color: rgba(251,191,36,0.5);
+                }
+
+          - type: custom:mushroom-light-card
+            entity: light.cuisine                # → votre lumière cuisine
+            name: Cuisine
+            show_brightness_control: true
+            collapsible_controls: true
+            card_mod:
+              style: *light_card
+
+          - type: custom:mushroom-light-card
+            entity: light.chambre                # → votre lumière chambre
+            name: Chambre
+            show_brightness_control: true
+            show_color_control: true
+            collapsible_controls: true
+            card_mod:
+              style: *light_card
+
+      # ── Lecteur en cours ─────────────────────────────────────────────────
+      - type: custom:mushroom-title-card
+        title: "En cours de lecture"
+        card_mod:
+          style: |
+            ha-card { background: transparent !important; box-shadow: none !important; }
+            .title {
+              color: rgba(255,255,255,0.5) !important;
+              font-size: 0.8em !important;
+              letter-spacing: 4px;
+              text-transform: uppercase;
+            }
+
+      - type: custom:mini-media-player
+        entity: media_player.google_home_salon   # → votre Google Home principal
+        name: "Musique en cours"
+        artwork: cover
+        background_color: true
+        toggle_power: false
+        hide:
+          power: true
+          source: true
+        card_mod:
+          style: |
+            ha-card {
+              background: rgba(10,10,30,0.6) !important;
+              backdrop-filter: blur(20px);
+              border: 1px solid rgba(30,215,96,0.2);
+              border-radius: 20px;
+              overflow: hidden;
+            }
+
+      # ── Scènes rapides ───────────────────────────────────────────────────
+      - type: custom:mushroom-title-card
+        title: "Scènes"
+        card_mod:
+          style: |
+            ha-card { background: transparent !important; box-shadow: none !important; }
+            .title {
+              color: rgba(255,255,255,0.5) !important;
+              font-size: 0.8em !important;
+              letter-spacing: 4px;
+              text-transform: uppercase;
+            }
+
+      - type: horizontal-stack
+        cards:
+          - type: custom:mushroom-template-card
+            primary: "Cinéma"
+            icon: mdi:movie-open
+            icon_color: purple
+            tap_action:
+              action: call-service
+              service: scene.turn_on
+              service_data:
+                entity_id: scene.cinema          # → votre scène cinéma
+            card_mod:
+              style: &scene_card |
+                ha-card {
+                  background: rgba(10,10,30,0.6) !important;
+                  backdrop-filter: blur(20px);
+                  border: 1px solid rgba(168,85,247,0.2);
+                  border-radius: 20px;
+                  cursor: pointer;
+                  transition: all 0.3s ease;
+                }
+                ha-card:hover {
+                  transform: translateY(-4px);
+                  box-shadow: 0 12px 32px rgba(168,85,247,0.35);
+                  border-color: rgba(168,85,247,0.6);
+                }
+
+          - type: custom:mushroom-template-card
+            primary: "Détente"
+            icon: mdi:sofa
+            icon_color: amber
+            tap_action:
+              action: call-service
+              service: scene.turn_on
+              service_data:
+                entity_id: scene.detente         # → votre scène détente
+            card_mod:
+              style: *scene_card
+
+          - type: custom:mushroom-template-card
+            primary: "Nuit"
+            icon: mdi:weather-night
+            icon_color: indigo
+            tap_action:
+              action: call-service
+              service: scene.turn_on
+              service_data:
+                entity_id: scene.nuit            # → votre scène nuit
+            card_mod:
+              style: *scene_card
+
+          - type: custom:mushroom-template-card
+            primary: "Réveil"
+            icon: mdi:weather-sunny
+            icon_color: orange
+            tap_action:
+              action: call-service
+              service: scene.turn_on
+              service_data:
+                entity_id: scene.reveil          # → votre scène réveil
+            card_mod:
+              style: *scene_card
+
+
+  ##########################################################################
+  # ══════════════════════════════════════════════════════════════════════ #
+  #  VUE 2 — LUMIÈRES                                                      #
+  # ══════════════════════════════════════════════════════════════════════ #
+  ##########################################################################
+  - title: Lumières
+    path: lumieres
+    icon: mdi:lightbulb-group
+    background: >-
+      center / cover no-repeat fixed
+      url('https://images.unsplash.com/photo-1617791160536-598cf32026fb?w=1920&q=80')
+    cards:
+
+      # ── En-tête ──────────────────────────────────────────────────────────
+      - type: custom:mushroom-title-card
+        title: "Éclairage"
+        subtitle: >-
+          {{ states.light | selectattr('state','eq','on') | list | count }}
+          lumière(s) allumée(s)
+        card_mod:
+          style: |
+            ha-card {
+              background: rgba(10,10,20,0.7) !important;
+              backdrop-filter: blur(24px);
+              border: 1px solid rgba(251,191,36,0.25);
+              border-radius: 24px;
+              padding: 8px 4px;
+              animation: slideDown 0.6s cubic-bezier(0.16,1,0.3,1);
+            }
+            @keyframes slideDown {
+              from { opacity:0; transform:translateY(-20px); }
+              to   { opacity:1; transform:translateY(0); }
+            }
+            .title {
+              font-size: 2em !important;
+              font-weight: 800 !important;
+              background: linear-gradient(135deg, #ffffff, #fbbf24, #f59e0b);
+              -webkit-background-clip: text;
+              -webkit-text-fill-color: transparent;
+              background-clip: text;
+            }
+
+      # ── Interrupteur général ─────────────────────────────────────────────
+      - type: custom:mushroom-template-card
+        primary: "Tout éteindre"
+        secondary: >-
+          {{ states.light | selectattr('state','eq','on') | list | count }}
+          lumière(s) actuellement allumée(s)
+        icon: >-
+          {{ 'mdi:lightbulb-group' if states.light | selectattr('state','eq','on') | list | count > 0
+             else 'mdi:lightbulb-group-off' }}
+        icon_color: >-
+          {{ 'amber' if states.light | selectattr('state','eq','on') | list | count > 0 else 'grey' }}
+        tap_action:
+          action: call-service
+          service: light.turn_off
+          service_data:
+            entity_id: all
+        hold_action:
+          action: call-service
+          service: light.turn_on
+          service_data:
+            entity_id: all
+            brightness_pct: 100
+        card_mod:
+          style: |
+            ha-card {
+              background: rgba(10,10,20,0.65) !important;
+              backdrop-filter: blur(20px);
+              border: 1px solid rgba(251,191,36,0.3);
+              border-radius: 20px;
+              cursor: pointer;
+              transition: all 0.3s ease;
+            }
+            ha-card:hover {
+              border-color: rgba(251,191,36,0.7);
+              box-shadow: 0 0 40px rgba(251,191,36,0.2);
+            }
+
+      # ── Salon ────────────────────────────────────────────────────────────
+      - type: custom:mushroom-title-card
+        title: "Salon"
+        card_mod:
+          style: &room_title |
+            ha-card { background: transparent !important; box-shadow: none !important; }
+            .title {
+              color: rgba(255,255,255,0.45) !important;
+              font-size: 0.78em !important;
+              letter-spacing: 5px;
+              text-transform: uppercase;
+            }
+
+      - type: horizontal-stack
+        cards:
+          - type: custom:mushroom-light-card
+            entity: light.salon                  # → lumière principale salon
+            name: Principal
+            show_brightness_control: true
+            show_color_temp_control: true
+            show_color_control: true
+            collapsible_controls: false
+            card_mod:
+              style: *light_card
+
+          - type: custom:mushroom-light-card
+            entity: light.salon_ambiance         # → guirlandes / LED salon
+            name: Ambiance
+            show_brightness_control: true
+            show_color_control: true
+            collapsible_controls: false
+            card_mod:
+              style: *light_card
+
+          - type: custom:mushroom-light-card
+            entity: light.tv                     # → rétro-éclairage TV (Govee, etc.)
+            name: TV LED
+            show_brightness_control: true
+            show_color_control: true
+            card_mod:
+              style: *light_card
+
+      # ── Cuisine ──────────────────────────────────────────────────────────
+      - type: custom:mushroom-title-card
+        title: "Cuisine"
+        card_mod:
+          style: *room_title
+
+      - type: horizontal-stack
+        cards:
+          - type: custom:mushroom-light-card
+            entity: light.cuisine                # → plafonnier cuisine
+            name: Plafonnier
+            show_brightness_control: true
+            show_color_temp_control: true
+            card_mod:
+              style: *light_card
+
+          - type: custom:mushroom-light-card
+            entity: light.cuisine_plan           # → sous-meuble cuisine
+            name: Plan de travail
+            show_brightness_control: true
+            card_mod:
+              style: *light_card
+
+      # ── Chambre ──────────────────────────────────────────────────────────
+      - type: custom:mushroom-title-card
+        title: "Chambre"
+        card_mod:
+          style: *room_title
+
+      - type: horizontal-stack
+        cards:
+          - type: custom:mushroom-light-card
+            entity: light.chambre                # → plafonnier chambre
+            name: Plafonnier
+            show_brightness_control: true
+            show_color_control: true
+            card_mod:
+              style: *light_card
+
+          - type: custom:mushroom-light-card
+            entity: light.chevet_gauche          # → lampe de chevet gauche
+            name: Chevet G.
+            show_brightness_control: true
+            card_mod:
+              style: *light_card
+
+          - type: custom:mushroom-light-card
+            entity: light.chevet_droit           # → lampe de chevet droite
+            name: Chevet D.
+            show_brightness_control: true
+            card_mod:
+              style: *light_card
+
+      # ── Salle de bain ────────────────────────────────────────────────────
+      - type: custom:mushroom-title-card
+        title: "Salle de bain"
+        card_mod:
+          style: *room_title
+
+      - type: horizontal-stack
+        cards:
+          - type: custom:mushroom-light-card
+            entity: light.salle_de_bain          # → lumière sdb
+            name: Principal
+            show_brightness_control: true
+            show_color_temp_control: true
+            card_mod:
+              style: *light_card
+
+          - type: custom:mushroom-light-card
+            entity: light.miroir                 # → miroir lumineux / halo
+            name: Miroir
+            show_brightness_control: true
+            card_mod:
+              style: *light_card
+
+      # ── Entrée / Couloir ─────────────────────────────────────────────────
+      - type: custom:mushroom-title-card
+        title: "Entrée & Couloir"
+        card_mod:
+          style: *room_title
+
+      - type: horizontal-stack
+        cards:
+          - type: custom:mushroom-light-card
+            entity: light.entree                 # → lumière entrée
+            name: Entrée
+            show_brightness_control: true
+            card_mod:
+              style: *light_card
+
+          - type: custom:mushroom-light-card
+            entity: light.couloir                # → lumière couloir
+            name: Couloir
+            show_brightness_control: true
+            card_mod:
+              style: *light_card
+
+      # ── Extérieur ────────────────────────────────────────────────────────
+      - type: custom:mushroom-title-card
+        title: "Extérieur"
+        card_mod:
+          style: *room_title
+
+      - type: horizontal-stack
+        cards:
+          - type: custom:mushroom-light-card
+            entity: light.terrasse               # → lumières terrasse
+            name: Terrasse
+            show_brightness_control: true
+            show_color_control: true
+            card_mod:
+              style: *light_card
+
+          - type: custom:mushroom-light-card
+            entity: light.jardin                 # → lumières jardin
+            name: Jardin
+            show_brightness_control: true
+            card_mod:
+              style: *light_card
+
+
+  ##########################################################################
+  # ══════════════════════════════════════════════════════════════════════ #
+  #  VUE 3 — MUSIQUE                                                       #
+  # ══════════════════════════════════════════════════════════════════════ #
+  ##########################################################################
+  - title: Musique
+    path: musique
+    icon: mdi:music-circle
+    background: >-
+      center / cover no-repeat fixed
+      url('https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=1920&q=80')
+    cards:
+
+      # ── En-tête ──────────────────────────────────────────────────────────
+      - type: custom:mushroom-title-card
+        title: "Musique"
+        subtitle: "Spotify · Google Home · Denon"
+        card_mod:
+          style: |
+            ha-card {
+              background: rgba(10,10,20,0.7) !important;
+              backdrop-filter: blur(24px);
+              border: 1px solid rgba(30,215,96,0.3);
+              border-radius: 24px;
+              padding: 8px 4px;
+              animation: slideDown 0.6s cubic-bezier(0.16,1,0.3,1);
+            }
+            @keyframes slideDown {
+              from { opacity:0; transform:translateY(-20px); }
+              to   { opacity:1; transform:translateY(0); }
+            }
+            .title {
+              font-size: 2em !important;
+              font-weight: 800 !important;
+              background: linear-gradient(135deg, #ffffff, #1ed760);
+              -webkit-background-clip: text;
+              -webkit-text-fill-color: transparent;
+              background-clip: text;
+            }
+            .subtitle { color: rgba(255,255,255,0.5) !important; }
+
+      # ── Spotify ──────────────────────────────────────────────────────────
+      - type: custom:mushroom-title-card
+        title: "Spotify"
+        card_mod:
+          style: *room_title
+
+      - type: custom:spotify-card
+        account: spotify                         # → votre compte Spotify HA
+        height: 200
+        card_mod:
+          style: |
+            ha-card {
+              background: rgba(10,10,20,0.7) !important;
+              backdrop-filter: blur(20px);
+              border: 1px solid rgba(30,215,96,0.3);
+              border-radius: 20px;
+              overflow: hidden;
+              transition: box-shadow 0.3s ease;
+            }
+            ha-card:hover { box-shadow: 0 8px 40px rgba(30,215,96,0.25); }
+
+      # ── Google Home ──────────────────────────────────────────────────────
+      - type: custom:mushroom-title-card
+        title: "Google Home"
+        card_mod:
+          style: *room_title
+
+      - type: custom:mini-media-player
+        entity: media_player.google_home_salon   # → Google Home Salon
+        name: "Google Home — Salon"
+        icon: mdi:google-home
+        artwork: cover
+        background_color: true
+        volume_stateless: false
+        toggle_power: true
+        hide:
+          power: false
+          shuffle: false
+          repeat: false
+          progress: false
+        card_mod:
+          style: |
+            ha-card {
+              background: rgba(10,10,20,0.7) !important;
+              backdrop-filter: blur(20px);
+              border: 1px solid rgba(66,133,244,0.35);
+              border-radius: 20px;
+              overflow: hidden;
+              transition: all 0.3s ease;
+            }
+            ha-card:hover { box-shadow: 0 8px 40px rgba(66,133,244,0.3); }
+
+      - type: custom:mini-media-player
+        entity: media_player.google_home_chambre # → Google Home Chambre (supprimer si absent)
+        name: "Google Home — Chambre"
+        icon: mdi:google-home
+        artwork: cover
+        background_color: true
+        volume_stateless: false
+        hide:
+          progress: false
+        card_mod:
+          style: |
+            ha-card {
+              background: rgba(10,10,20,0.7) !important;
+              backdrop-filter: blur(20px);
+              border: 1px solid rgba(66,133,244,0.25);
+              border-radius: 20px;
+              overflow: hidden;
+            }
+
+      # ── Denon AVR ────────────────────────────────────────────────────────
+      - type: custom:mushroom-title-card
+        title: "Ampli Denon"
+        card_mod:
+          style: *room_title
+
+      - type: custom:mini-media-player
+        entity: media_player.denon_avr           # → votre ampli Denon
+        name: "Denon AVR"
+        icon: mdi:amplifier
+        artwork: cover
+        background_color: true
+        volume_stateless: false
+        toggle_power: true
+        source: true
+        sound_mode: true
+        hide:
+          shuffle: true
+          repeat: true
+          progress: false
+        card_mod:
+          style: |
+            ha-card {
+              background: rgba(10,10,20,0.7) !important;
+              backdrop-filter: blur(20px);
+              border: 1px solid rgba(168,85,247,0.35);
+              border-radius: 20px;
+              overflow: hidden;
+              transition: all 0.3s ease;
+            }
+            ha-card:hover { box-shadow: 0 8px 40px rgba(168,85,247,0.3); }
+
+      # ── Envoyer Spotify vers... ──────────────────────────────────────────
+      - type: custom:mushroom-title-card
+        title: "Envoyer vers"
+        card_mod:
+          style: *room_title
+
+      - type: horizontal-stack
+        cards:
+          - type: custom:mushroom-template-card
+            primary: "Google Home"
+            secondary: "Salon"
+            icon: mdi:cast-audio
+            icon_color: blue
+            tap_action:
+              action: call-service
+              service: media_player.select_source
+              service_data:
+                entity_id: media_player.spotify  # → media_player.spotify_VOTRECOMPTE
+                source: "Salon"                  # → nom de la cible Spotify
+            card_mod:
+              style: &cast_card |
+                ha-card {
+                  background: rgba(10,10,20,0.65) !important;
+                  backdrop-filter: blur(20px);
+                  border: 1px solid rgba(66,133,244,0.25);
+                  border-radius: 20px;
+                  cursor: pointer;
+                  transition: all 0.3s ease;
+                }
+                ha-card:hover {
+                  transform: translateY(-5px);
+                  box-shadow: 0 12px 32px rgba(66,133,244,0.35);
+                  border-color: rgba(66,133,244,0.6);
+                }
+
+          - type: custom:mushroom-template-card
+            primary: "Denon AVR"
+            secondary: "Ampli HiFi"
+            icon: mdi:amplifier
+            icon_color: purple
+            tap_action:
+              action: call-service
+              service: media_player.select_source
+              service_data:
+                entity_id: media_player.spotify  # → media_player.spotify_VOTRECOMPTE
+                source: "Denon AVR"              # → nom du Denon dans Spotify
+            card_mod:
+              style: *cast_card
+
+          - type: custom:mushroom-template-card
+            primary: "Chambre"
+            secondary: "Google Home"
+            icon: mdi:speaker-wireless
+            icon_color: teal
+            tap_action:
+              action: call-service
+              service: media_player.select_source
+              service_data:
+                entity_id: media_player.spotify  # → media_player.spotify_VOTRECOMPTE
+                source: "Chambre"                # → nom de la cible Spotify
+            card_mod:
+              style: *cast_card
+
+          - type: custom:mushroom-template-card
+            primary: "Partout"
+            secondary: "Groupe"
+            icon: mdi:surround-sound
+            icon_color: green
+            tap_action:
+              action: call-service
+              service: media_player.select_source
+              service_data:
+                entity_id: media_player.spotify  # → media_player.spotify_VOTRECOMPTE
+                source: "Maison entière"         # → groupe Spotify Connect
+            card_mod:
+              style: *cast_card
+
+
+  ##########################################################################
+  # ══════════════════════════════════════════════════════════════════════ #
+  #  VUE 4 — SÉCURITÉ & CAMÉRAS                                           #
+  # ══════════════════════════════════════════════════════════════════════ #
+  ##########################################################################
+  - title: Sécurité
+    path: securite
+    icon: mdi:shield-home
+    background: >-
+      center / cover no-repeat fixed
+      url('https://images.unsplash.com/photo-1557597774-9d273605dfa9?w=1920&q=80')
+    cards:
+
+      # ── En-tête ──────────────────────────────────────────────────────────
+      - type: custom:mushroom-title-card
+        title: "Sécurité"
+        subtitle: "Caméras & Détections"
+        card_mod:
+          style: |
+            ha-card {
+              background: rgba(10,10,20,0.7) !important;
+              backdrop-filter: blur(24px);
+              border: 1px solid rgba(239,68,68,0.3);
+              border-radius: 24px;
+              padding: 8px 4px;
+              animation: slideDown 0.6s cubic-bezier(0.16,1,0.3,1);
+            }
+            @keyframes slideDown {
+              from { opacity:0; transform:translateY(-20px); }
+              to   { opacity:1; transform:translateY(0); }
+            }
+            .title {
+              font-size: 2em !important;
+              font-weight: 800 !important;
+              background: linear-gradient(135deg, #ffffff, #ef4444);
+              -webkit-background-clip: text;
+              -webkit-text-fill-color: transparent;
+              background-clip: text;
+            }
+
+      # ── Statut des capteurs ──────────────────────────────────────────────
+      - type: horizontal-stack
+        cards:
+          - type: custom:mushroom-entity-card
+            entity: binary_sensor.motion_entree  # → détecteur mouvement entrée
+            name: "Entrée"
+            icon: mdi:motion-sensor
+            icon_color: red
+            card_mod:
+              style: *glass_card
+
+          - type: custom:mushroom-entity-card
+            entity: binary_sensor.motion_salon   # → détecteur mouvement salon
+            name: "Salon"
+            icon: mdi:motion-sensor
+            icon_color: red
+            card_mod:
+              style: *glass_card
+
+          - type: custom:mushroom-entity-card
+            entity: binary_sensor.door_entree    # → contact de porte entrée
+            name: "Porte"
+            icon: mdi:door
+            icon_color: orange
+            card_mod:
+              style: *glass_card
+
+          - type: custom:mushroom-entity-card
+            entity: binary_sensor.window_salon   # → contact fenêtre salon
+            name: "Fenêtre"
+            icon: mdi:window-open-variant
+            icon_color: orange
+            card_mod:
+              style: *glass_card
+
+      # ── Caméras ──────────────────────────────────────────────────────────
+      - type: custom:mushroom-title-card
+        title: "Caméras"
+        card_mod:
+          style: *room_title
+
+      - type: picture-glance
+        title: "Entrée"
+        entity: camera.entree                    # → caméra entrée
+        camera_view: live
+        tap_action:
+          action: more-info
+        entities:
+          - entity: binary_sensor.motion_entree  # → mouvement entrée
+            icon: mdi:motion-sensor
+          - entity: light.entree                 # → lumière entrée
+            icon: mdi:lightbulb
+        card_mod:
+          style: |
+            ha-card {
+              background: rgba(10,10,20,0.7) !important;
+              backdrop-filter: blur(16px);
+              border: 1px solid rgba(255,255,255,0.1);
+              border-radius: 20px;
+              overflow: hidden;
+              transition: all 0.3s ease;
+            }
+            ha-card:hover {
+              transform: scale(1.01);
+              box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+            }
+
+      - type: picture-glance
+        title: "Jardin / Extérieur"
+        entity: camera.jardin                    # → caméra extérieure
+        camera_view: live
+        tap_action:
+          action: more-info
+        entities:
+          - entity: binary_sensor.motion_jardin  # → mouvement jardin
+            icon: mdi:motion-sensor
+        card_mod:
+          style: |
+            ha-card {
+              background: rgba(10,10,20,0.7) !important;
+              backdrop-filter: blur(16px);
+              border: 1px solid rgba(255,255,255,0.1);
+              border-radius: 20px;
+              overflow: hidden;
+              transition: all 0.3s ease;
+            }
+            ha-card:hover {
+              transform: scale(1.01);
+              box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+            }
+
+      - type: horizontal-stack
+        cards:
+          - type: picture-entity
+            entity: camera.salon                 # → caméra intérieure salon
+            name: "Salon"
+            show_state: false
+            camera_view: live
+            tap_action:
+              action: more-info
+            card_mod:
+              style: |
+                ha-card {
+                  border-radius: 16px;
+                  overflow: hidden;
+                  border: 1px solid rgba(255,255,255,0.1);
+                  transition: transform 0.3s ease;
+                }
+                ha-card:hover { transform: scale(1.02); }
+
+          - type: picture-entity
+            entity: camera.garage                # → caméra garage (supprimer si absent)
+            name: "Garage"
+            show_state: false
+            camera_view: live
+            tap_action:
+              action: more-info
+            card_mod:
+              style: |
+                ha-card {
+                  border-radius: 16px;
+                  overflow: hidden;
+                  border: 1px solid rgba(255,255,255,0.1);
+                  transition: transform 0.3s ease;
+                }
+                ha-card:hover { transform: scale(1.02); }
+
+      # ── Alarme ───────────────────────────────────────────────────────────
+      - type: custom:mushroom-title-card
+        title: "Alarme"
+        card_mod:
+          style: *room_title
+
+      - type: alarm-panel
+        entity: alarm_control_panel.maison       # → supprimer si pas d'alarme
+        name: "Alarme Maison"
+        states:
+          - arm_home
+          - arm_away
+          - arm_night
+        card_mod:
+          style: |
+            ha-card {
+              background: rgba(10,10,20,0.7) !important;
+              backdrop-filter: blur(20px);
+              border: 1px solid rgba(239,68,68,0.3);
+              border-radius: 20px;
+            }
+
+
+  ##########################################################################
+  # ══════════════════════════════════════════════════════════════════════ #
+  #  VUE 5 — CLIMATISATION                                                 #
+  # ══════════════════════════════════════════════════════════════════════ #
+  ##########################################################################
+  - title: Climat
+    path: climat
+    icon: mdi:home-thermometer
+    background: >-
+      center / cover no-repeat fixed
+      url('https://images.unsplash.com/photo-1564419320461-6870880221ad?w=1920&q=80')
+    cards:
+
+      # ── En-tête ──────────────────────────────────────────────────────────
+      - type: custom:mushroom-title-card
+        title: "Climatisation"
+        subtitle: "Température & Confort"
+        card_mod:
+          style: |
+            ha-card {
+              background: rgba(10,10,20,0.7) !important;
+              backdrop-filter: blur(24px);
+              border: 1px solid rgba(6,182,212,0.3);
+              border-radius: 24px;
+              padding: 8px 4px;
+              animation: slideDown 0.6s cubic-bezier(0.16,1,0.3,1);
+            }
+            @keyframes slideDown {
+              from { opacity:0; transform:translateY(-20px); }
+              to   { opacity:1; transform:translateY(0); }
+            }
+            .title {
+              font-size: 2em !important;
+              font-weight: 800 !important;
+              background: linear-gradient(135deg, #ffffff, #06b6d4);
+              -webkit-background-clip: text;
+              -webkit-text-fill-color: transparent;
+              background-clip: text;
+            }
+
+      # ── Résumé températures ──────────────────────────────────────────────
+      - type: horizontal-stack
+        cards:
+          - type: custom:mushroom-template-card
+            primary: "{{ states('sensor.temperature_salon') | round(1) }}°C"
+            secondary: "Salon"
+            icon: mdi:sofa
+            icon_color: >-
+              {{ 'red' if states('sensor.temperature_salon')|float(0) > 24
+                 else ('cyan' if states('sensor.temperature_salon')|float(0) < 18
+                 else 'green') }}
+            card_mod:
+              style: *glass_card
+
+          - type: custom:mushroom-template-card
+            primary: "{{ states('sensor.temperature_chambre') | round(1) }}°C"
+            secondary: "Chambre"
+            icon: mdi:bed
+            icon_color: >-
+              {{ 'red' if states('sensor.temperature_chambre')|float(0) > 22
+                 else ('cyan' if states('sensor.temperature_chambre')|float(0) < 16
+                 else 'green') }}
+            card_mod:
+              style: *glass_card
+
+          - type: custom:mushroom-template-card
+            primary: "{{ states('sensor.temperature_exterieur') | round(1) }}°C"
+            secondary: "Extérieur"
+            icon: mdi:sun-thermometer
+            icon_color: amber
+            card_mod:
+              style: *glass_card
+
+      # ── Thermostats ──────────────────────────────────────────────────────
+      - type: custom:mushroom-title-card
+        title: "Thermostats"
+        card_mod:
+          style: *room_title
+
+      - type: custom:mushroom-climate-card
+        entity: climate.salon                    # → thermostat salon
+        name: "Salon"
+        show_temperature_control: true
+        hvac_modes:
+          - heat
+          - cool
+          - auto
+          - "off"
+        card_mod:
+          style: |
+            ha-card {
+              background: rgba(10,10,20,0.7) !important;
+              backdrop-filter: blur(20px);
+              border: 1px solid rgba(6,182,212,0.3);
+              border-radius: 20px;
+              transition: all 0.3s ease;
+            }
+            ha-card:hover { box-shadow: 0 8px 40px rgba(6,182,212,0.25); }
+
+      - type: horizontal-stack
+        cards:
+          - type: custom:mushroom-climate-card
+            entity: climate.chambre              # → thermostat chambre
+            name: "Chambre"
+            show_temperature_control: true
+            card_mod:
+              style: |
+                ha-card {
+                  background: rgba(10,10,20,0.65) !important;
+                  backdrop-filter: blur(20px);
+                  border: 1px solid rgba(6,182,212,0.2);
+                  border-radius: 20px;
+                }
+
+          - type: custom:mushroom-climate-card
+            entity: climate.bureau               # → thermostat bureau (supprimer si absent)
+            name: "Bureau"
+            show_temperature_control: true
+            card_mod:
+              style: |
+                ha-card {
+                  background: rgba(10,10,20,0.65) !important;
+                  backdrop-filter: blur(20px);
+                  border: 1px solid rgba(6,182,212,0.2);
+                  border-radius: 20px;
+                }
+
+          - type: custom:mushroom-climate-card
+            entity: climate.salle_de_bain        # → thermostat sdb (supprimer si absent)
+            name: "Salle de bain"
+            show_temperature_control: true
+            card_mod:
+              style: |
+                ha-card {
+                  background: rgba(10,10,20,0.65) !important;
+                  backdrop-filter: blur(20px);
+                  border: 1px solid rgba(6,182,212,0.2);
+                  border-radius: 20px;
+                }
+
+      # ── Graphiques ───────────────────────────────────────────────────────
+      - type: custom:mushroom-title-card
+        title: "Historique 24h"
+        card_mod:
+          style: *room_title
+
+      - type: custom:mini-graph-card
+        name: "Températures"
+        entities:
+          - entity: sensor.temperature_salon     # → température salon
+            name: Salon
+            color: "#06b6d4"
+          - entity: sensor.temperature_chambre   # → température chambre
+            name: Chambre
+            color: "#8b5cf6"
+          - entity: sensor.temperature_exterieur # → température extérieure
+            name: Extérieur
+            color: "#f59e0b"
+        hours_to_show: 24
+        points_per_hour: 4
+        line_width: 2
+        smoothing: true
+        show:
+          legend: true
+          fill: fade
+          icon: false
+          state: true
+        card_mod:
+          style: |
+            ha-card {
+              background: rgba(10,10,20,0.7) !important;
+              backdrop-filter: blur(20px);
+              border: 1px solid rgba(6,182,212,0.2);
+              border-radius: 20px;
+            }
+
+      - type: custom:mini-graph-card
+        name: "Humidité"
+        entities:
+          - entity: sensor.humidity_salon        # → humidité salon
+            name: Salon
+            color: "#3b82f6"
+          - entity: sensor.humidity_chambre      # → humidité chambre
+            name: Chambre
+            color: "#8b5cf6"
+        hours_to_show: 24
+        points_per_hour: 4
+        line_width: 2
+        smoothing: true
+        show:
+          legend: true
+          fill: fade
+          icon: false
+        card_mod:
+          style: |
+            ha-card {
+              background: rgba(10,10,20,0.7) !important;
+              backdrop-filter: blur(20px);
+              border: 1px solid rgba(59,130,246,0.2);
+              border-radius: 20px;
+            }
+
+
+  ##########################################################################
+  # ══════════════════════════════════════════════════════════════════════ #
+  #  VUE 6 — AUTOMATISATIONS & SCÈNES                                     #
+  # ══════════════════════════════════════════════════════════════════════ #
+  ##########################################################################
+  - title: Automatisations
+    path: automatisations
+    icon: mdi:robot
+    background: >-
+      center / cover no-repeat fixed
+      url('https://images.unsplash.com/photo-1518770660439-4636190af475?w=1920&q=80')
+    cards:
+
+      # ── En-tête ──────────────────────────────────────────────────────────
+      - type: custom:mushroom-title-card
+        title: "Automatisations"
+        subtitle: "Scènes & Routines"
+        card_mod:
+          style: |
+            ha-card {
+              background: rgba(10,10,20,0.7) !important;
+              backdrop-filter: blur(24px);
+              border: 1px solid rgba(139,92,246,0.3);
+              border-radius: 24px;
+              padding: 8px 4px;
+              animation: slideDown 0.6s cubic-bezier(0.16,1,0.3,1);
+            }
+            @keyframes slideDown {
+              from { opacity:0; transform:translateY(-20px); }
+              to   { opacity:1; transform:translateY(0); }
+            }
+            .title {
+              font-size: 2em !important;
+              font-weight: 800 !important;
+              background: linear-gradient(135deg, #ffffff, #8b5cf6);
+              -webkit-background-clip: text;
+              -webkit-text-fill-color: transparent;
+              background-clip: text;
+            }
+
+      # ── Scènes ───────────────────────────────────────────────────────────
+      - type: custom:mushroom-title-card
+        title: "Scènes"
+        card_mod:
+          style: *room_title
+
+      - type: horizontal-stack
+        cards:
+          - type: custom:mushroom-template-card
+            primary: "Cinéma"
+            secondary: "Lumières tamisées + TV"
+            icon: mdi:movie-open
+            icon_color: purple
+            tap_action:
+              action: call-service
+              service: scene.turn_on
+              service_data:
+                entity_id: scene.cinema          # → votre scène
+            card_mod:
+              style: *scene_card
+
+          - type: custom:mushroom-template-card
+            primary: "Détente"
+            secondary: "Lumières douces"
+            icon: mdi:sofa
+            icon_color: amber
+            tap_action:
+              action: call-service
+              service: scene.turn_on
+              service_data:
+                entity_id: scene.detente         # → votre scène
+            card_mod:
+              style: *scene_card
+
+      - type: horizontal-stack
+        cards:
+          - type: custom:mushroom-template-card
+            primary: "Nuit"
+            secondary: "Tout éteint"
+            icon: mdi:weather-night
+            icon_color: indigo
+            tap_action:
+              action: call-service
+              service: scene.turn_on
+              service_data:
+                entity_id: scene.nuit            # → votre scène
+            card_mod:
+              style: *scene_card
+
+          - type: custom:mushroom-template-card
+            primary: "Réveil"
+            secondary: "Lumières douces + musique"
+            icon: mdi:weather-sunny
+            icon_color: orange
+            tap_action:
+              action: call-service
+              service: scene.turn_on
+              service_data:
+                entity_id: scene.reveil          # → votre scène
+            card_mod:
+              style: *scene_card
+
+          - type: custom:mushroom-template-card
+            primary: "Absence"
+            secondary: "Sécurité activée"
+            icon: mdi:home-export-outline
+            icon_color: red
+            tap_action:
+              action: call-service
+              service: scene.turn_on
+              service_data:
+                entity_id: scene.absence         # → votre scène
+            card_mod:
+              style: *scene_card
+
+          - type: custom:mushroom-template-card
+            primary: "Retour"
+            secondary: "Maison prête"
+            icon: mdi:home-import-outline
+            icon_color: green
+            tap_action:
+              action: call-service
+              service: scene.turn_on
+              service_data:
+                entity_id: scene.retour          # → votre scène
+            card_mod:
+              style: *scene_card
+
+      # ── Automatisations rapides ──────────────────────────────────────────
+      - type: custom:mushroom-title-card
+        title: "Activer / Désactiver"
+        card_mod:
+          style: *room_title
+
+      - type: custom:mushroom-entity-card
+        entity: automation.lumieres_coucher      # → automatisation lumières coucher
+        name: "Lumières au coucher du soleil"
+        icon: mdi:weather-sunset-down
+        icon_color: orange
+        tap_action:
+          action: toggle
+        card_mod:
+          style: *glass_card
+
+      - type: custom:mushroom-entity-card
+        entity: automation.chauffage_nuit        # → automatisation chauffage nuit
+        name: "Chauffage mode nuit"
+        icon: mdi:radiator
+        icon_color: cyan
+        tap_action:
+          action: toggle
+        card_mod:
+          style: *glass_card
+
+      - type: custom:mushroom-entity-card
+        entity: automation.alarme_presence       # → automatisation alarme
+        name: "Simulation de présence"
+        icon: mdi:home-account
+        icon_color: green
+        tap_action:
+          action: toggle
+        card_mod:
+          style: *glass_card

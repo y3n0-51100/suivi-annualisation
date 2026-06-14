@@ -765,7 +765,6 @@ body.mobile-nav-open .mobile-backdrop{display:block}
           <div class="nav-item admin-only" data-page="holidays" onclick="showPage('holidays')" style="display:none"><span class="ni">🎌</span><span>Fériés &amp; Dimanches</span></div>
           <div class="nav-item admin-only" data-page="lock-months" onclick="showPage('lock-months')" style="display:none"><span class="ni">🔒</span><span>Blocage mois</span></div>
           <div class="nav-item admin-only" data-page="config-period" onclick="showPage('config-period')" style="display:none"><span class="ni">🗓</span><span>Config période</span></div>
-          <div class="nav-item admin-only" data-page="export-siege" onclick="showPage('export-siege')" style="display:none"><span class="ni">📤</span><span>Export Siège</span></div>
           <div class="nav-item admin-only" data-page="announcements" onclick="showPage('announcements')" style="display:none"><span class="ni">📢</span><span>Annonces</span></div>
           <div class="nav-item admin-only" data-page="audit-log" onclick="showPage('audit-log')" style="display:none"><span class="ni">📜</span><span>Historique</span></div>
           <div class="nav-item admin-only" data-page="snapshots" onclick="showPage('snapshots')" style="display:none"><span class="ni">💾</span><span>Sauvegardes</span></div>
@@ -1294,7 +1293,7 @@ body.mobile-nav-open .mobile-backdrop{display:block}
             <div class="card-title">Créer un instantané maintenant</div>
             <button class="btn btn-primary" onclick="createSnapshotManual()">📸 Nouveau snapshot</button>
           </div>
-          <p class="card-sub">Sauvegarde immédiate de <strong>tous les plannings</strong> (heures saisies, absences, notes). Conseillé avant toute opération risquée (reset global, import siège, modification massive).</p>
+          <p class="card-sub">Sauvegarde immédiate de <strong>tous les plannings</strong> (heures saisies, absences, notes). Conseillé avant toute opération risquée (reset global, modification massive).</p>
           <div id="snapStatus" style="font-size:12px;color:var(--g500);margin-top:8px"></div>
         </div>
 
@@ -1455,78 +1454,6 @@ body.mobile-nav-open .mobile-backdrop{display:block}
         </div>
       </div>
 
-      <!-- ═══ PAGE: EXPORT SIÈGE ═══ -->
-      <div id="page-export-siege" class="page">
-        <div class="ph">
-          <h2>📤 Export Siège</h2>
-          <p>Importez le fichier Excel du siège et générez-le automatiquement complété avec les heures de l'équipe</p>
-        </div>
-
-        <!-- Step 1: Upload -->
-        <div class="card" style="max-width:700px">
-          <div class="card-head"><div class="card-title">① Importer le fichier Excel du siège</div></div>
-          <div class="doc-dropzone" id="siegeDropzone"
-               onclick="document.getElementById('siegeFileInput').click()"
-               ondragover="event.preventDefault();this.classList.add('drag-over')"
-               ondragleave="this.classList.remove('drag-over')"
-               ondrop="handleSiegeFileDrop(event)">
-            <div class="dz-icon">📊</div>
-            <div class="dz-text" id="siegeDropText">Cliquez ou glissez le fichier Excel du siège (.xlsm / .xlsx)</div>
-            <div class="dz-hint">Fiche horaire mensuelle reçue de la centrale RH</div>
-          </div>
-          <input type="file" id="siegeFileInput" style="display:none" onchange="processSiegeFile(this.files[0])" accept=".xlsx,.xlsm,.xls">
-          <div id="siegeLoadingMsg" style="display:none;text-align:center;padding:12px;color:var(--g500);font-size:13px">⏳ Analyse du fichier en cours…</div>
-        </div>
-
-        <!-- Step 2: Analysis -->
-        <div class="card" style="max-width:700px;display:none" id="siegeAnalysisCard">
-          <div class="card-head">
-            <div class="card-title">② Analyse du fichier</div>
-            <button class="btn btn-secondary btn-sm" onclick="resetSiegeExport()">🔄 Changer de fichier</button>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">
-            <div class="synth-cell">
-              <div class="sc-month">Enseigne / Magasin</div>
-              <div style="font-size:13px;font-weight:700;color:var(--navy)" id="siegeMagasin">—</div>
-            </div>
-            <div class="synth-cell">
-              <div class="sc-month">Mois concerné</div>
-              <div style="font-size:13px;font-weight:700;color:var(--navy)" id="siegeMonth">—</div>
-            </div>
-            <div class="synth-cell">
-              <div class="sc-month">Semaines à saisir</div>
-              <div style="font-size:13px;font-weight:700;color:var(--teal)" id="siegeWeeks">—</div>
-            </div>
-          </div>
-          <div style="background:var(--g100);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--g500)">
-            <strong style="color:var(--navy)">ℹ️ Semaine non saisie :</strong> <span id="siegeS8Info">—</span>
-          </div>
-
-          <div class="card-title" style="margin-bottom:10px">Collaborateurs détectés</div>
-          <div id="siegeFichesList" style="font-size:12px"></div>
-
-          <div id="siegeWarningMsg" style="display:none;margin-top:12px;padding:10px 14px;background:#FFF7ED;border-radius:8px;border-left:3px solid #F97316;font-size:12px;color:#92400E"></div>
-        </div>
-
-        <!-- Step 3: Generate -->
-        <div class="card" style="max-width:700px;display:none" id="siegeGenerateCard">
-          <div class="card-head"><div class="card-title">③ Générer le fichier complété</div></div>
-          <div style="padding:8px 0 14px;font-size:13px;color:var(--g500)">
-            Le fichier sera complété avec les heures enregistrées dans l'outil pour chaque collaborateur, sur les semaines demandées. Les cellules non renseignées dans l'outil resteront vides.
-          </div>
-          <div style="background:#F0FDF4;border-radius:8px;padding:10px 14px;font-size:12px;color:#166534;margin-bottom:16px">
-            <strong>Règles d'export :</strong><br>
-            • Heures travaillées → colonne "Heures / Demi J. Réalisées"<br>
-            • CP / CP Ancienneté → colonne "CP en Demi J."<br>
-            • Maladie, Événement familial → colonne "Abs. En Demi J." + Type<br>
-            • Récupération / Repos → journée non saisie (laissée vide)
-          </div>
-          <button class="btn btn-primary" id="siegeFillBtn" onclick="fillAndDownloadSiegeFichier()" style="width:100%;padding:14px;font-size:15px">
-            📥 Générer et télécharger le fichier complété
-          </button>
-          <div id="siegeProgressLog" style="margin-top:12px;font-size:11px;color:var(--g400);display:none"></div>
-        </div>
-      </div>
 
       <!-- ═══ PAGE: IMPRESSION PLANNING (ADMIN) ═══ -->
       <div id="page-pp-page" class="page">
@@ -3886,7 +3813,6 @@ function showPage(id) {
     case 'announcements':       loadAnnouncements(); break;
     case 'info-1607':           renderInfo1607(); break;
     case 'config-period':       initConfigPeriod(); break;
-    case 'export-siege':        initExportSiege(); break;
     case 'pp-page':             initPPPage(); break;
     case 'manager-absences':    renderManagerAbsencesPage(); break;
     case 'all-reset':           break;
@@ -5790,228 +5716,7 @@ document.addEventListener('keydown',e=>{
   if (e.key==='Escape') document.querySelectorAll('.modal-overlay.open').forEach(m=>{ if(m.id!=='modalAnnouncement') m.classList.remove('open'); });
 });
 
-// ═══════════════════════════════════════════════════════════════
-// EXPORT SIÈGE — Remplissage automatique du fichier RH
-// ═══════════════════════════════════════════════════════════════
-let _siegeFile     = null;
-let _siegeWorkbook = null;
-let _siegeAnalysis = null;
 
-function initExportSiege() { /* état conservé si fichier déjà chargé */ }
-
-function resetSiegeExport() {
-  _siegeFile = null; _siegeWorkbook = null; _siegeAnalysis = null;
-  document.getElementById('siegeDropText').textContent = 'Cliquez ou glissez le fichier Excel du siège (.xlsm / .xlsx)';
-  document.getElementById('siegeAnalysisCard').style.display  = 'none';
-  document.getElementById('siegeGenerateCard').style.display  = 'none';
-  document.getElementById('siegeLoadingMsg').style.display    = 'none';
-  document.getElementById('siegeProgressLog').style.display   = 'none';
-}
-
-function handleSiegeFileDrop(e) {
-  e.preventDefault();
-  document.getElementById('siegeDropzone').classList.remove('drag-over');
-  if (e.dataTransfer.files[0]) processSiegeFile(e.dataTransfer.files[0]);
-}
-
-async function processSiegeFile(file) {
-  if (!file || !file.name.match(/\.(xlsx|xlsm|xls)$/i)) {
-    toast('Veuillez sélectionner un fichier Excel (.xlsx ou .xlsm)', 'error'); return;
-  }
-  _siegeFile = file;
-  document.getElementById('siegeDropText').textContent = '📊 ' + file.name;
-  document.getElementById('siegeLoadingMsg').style.display = '';
-  document.getElementById('siegeAnalysisCard').style.display = 'none';
-  document.getElementById('siegeGenerateCard').style.display = 'none';
-  document.getElementById('siegeProgressLog').style.display  = 'none';
-  try {
-    const buf = await file.arrayBuffer();
-    _siegeWorkbook = XLSX.read(buf, { type:'array', bookVBA:true, cellFormula:false });
-    _siegeAnalysis = _analyzeSiegeFile(_siegeWorkbook);
-    if (_siegeAnalysis) _displaySiegeAnalysis(_siegeAnalysis);
-  } catch(err) {
-    console.error(err);
-    toast('Erreur lecture fichier : ' + err.message, 'error');
-  } finally {
-    document.getElementById('siegeLoadingMsg').style.display = 'none';
-  }
-}
-
-function _cellVal(ws, r, c) {
-  const cell = ws[XLSX.utils.encode_cell({r, c})];
-  return cell ? cell.v : null;
-}
-
-function _parseSemaineNum(val) {
-  if (val == null) return null;
-  const m = String(val).match(/\b(\d+)\b/);
-  return m ? parseInt(m[1]) : null;
-}
-
-function _analyzeSiegeFile(wb) {
-  const ws = wb.Sheets['MASQUE COLLABORATEUR'];
-  if (!ws) { toast('Feuille "MASQUE COLLABORATEUR" introuvable', 'error'); return null; }
-
-  const year    = parseInt(_cellVal(ws, 3, 1))  || new Date().getFullYear();
-  const magasin = _cellVal(ws, 3, 8) || '—';
-  const month   = _cellVal(ws, 4, 8) || '—';
-
-  const s4v = _cellVal(ws, 9, 0);   const s5v = _cellVal(ws, 9, 7);
-  const s6v = _cellVal(ws, 17, 0);  const s7v = _cellVal(ws, 17, 7);
-  const s8v = _cellVal(ws, 25, 0);
-
-  const weeks = [
-    { label:String(s4v||''), isoWeek:_parseSemaineNum(s4v), dataRowOffset:10, colWorked:1,  colCP:3,  colAbs:4,  colType:5  },
-    { label:String(s5v||''), isoWeek:_parseSemaineNum(s5v), dataRowOffset:10, colWorked:8,  colCP:10, colAbs:11, colType:12 },
-    { label:String(s6v||''), isoWeek:_parseSemaineNum(s6v), dataRowOffset:18, colWorked:1,  colCP:3,  colAbs:4,  colType:5  },
-    { label:String(s7v||''), isoWeek:_parseSemaineNum(s7v), dataRowOffset:18, colWorked:8,  colCP:10, colAbs:11, colType:12 },
-  ].filter(w => w.isoWeek != null);
-
-  const fiches = [];
-  for (let i = 0; i < 20; i++) {
-    const base     = i * 33;
-    const matRaw   = _cellVal(ws, base+7, 1);
-    const catRaw   = _cellVal(ws, base+8, 7);
-    const nomRaw   = _cellVal(ws, base+8, 1);
-    const matricule = matRaw != null ? String(matRaw).trim() : '';
-    if (!matricule || matricule==='0' || matricule==='#N/A' || matricule==='') continue;
-    fiches.push({ index:i, base, matricule,
-      categorie: catRaw ? String(catRaw).trim() : 'Employé',
-      nom:       nomRaw ? String(nomRaw).trim() : '—' });
-  }
-  return { year, magasin, month, weeks, s8Label:String(s8v||'Semaine 8'), fiches };
-}
-
-function _displaySiegeAnalysis(a) {
-  document.getElementById('siegeMagasin').textContent = a.magasin;
-  document.getElementById('siegeMonth').textContent   = a.month + ' ' + a.year;
-  document.getElementById('siegeWeeks').textContent   = a.weeks.map(w=>w.label).join(', ') || '—';
-  document.getElementById('siegeS8Info').textContent  = a.s8Label + ' → non saisie ici (gérée dans PREV HORAIRES)';
-
-  const warnings = [];
-  const lines = a.fiches.map(f => {
-    const user = allUsers.find(u => String(u.matricule||'').trim() === f.matricule);
-    const badge = user
-      ? `<span style="color:#059669">✅ ${user.name}</span>`
-      : `<span style="color:#EF4444">⚠️ Matricule non trouvé dans l'outil</span>`;
-    if (!user) warnings.push(`${f.matricule} (${f.nom})`);
-    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--g200)">
-      <span><strong>${f.matricule}</strong> — ${f.nom} <span style="opacity:.55;font-size:10px">(${f.categorie})</span></span>${badge}</div>`;
-  });
-  document.getElementById('siegeFichesList').innerHTML = lines.join('') ||
-    '<p style="color:var(--g400);font-size:12px;padding:8px 0">Aucune fiche collaborateur détectée.</p>';
-
-  const warnEl = document.getElementById('siegeWarningMsg');
-  if (warnings.length) {
-    warnEl.style.display = '';
-    warnEl.innerHTML = `<strong>⚠️ ${warnings.length} collaborateur(s) non trouvé(s) :</strong> ${warnings.join(', ')}.<br>
-      <small>Vérifiez que le matricule est bien renseigné dans chaque fiche collaborateur de l'outil.</small>`;
-  } else { warnEl.style.display = 'none'; }
-
-  document.getElementById('siegeAnalysisCard').style.display = '';
-  document.getElementById('siegeGenerateCard').style.display = '';
-}
-
-function _isoWeekToDate(year, isoWeek, isoDayOfWeek) {
-  const jan4   = new Date(year, 0, 4);
-  const dow    = jan4.getDay() || 7;
-  const monW1  = new Date(jan4);
-  monW1.setDate(jan4.getDate() - (dow - 1));
-  const target = new Date(monW1);
-  target.setDate(monW1.getDate() + (isoWeek - 1) * 7 + (isoDayOfWeek - 1));
-  return target;
-}
-
-function _fmtDateKey(d) {
-  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-}
-
-function _setCell(ws, r, c, value) {
-  const ref = XLSX.utils.encode_cell({r, c});
-  if (!ws[ref]) ws[ref] = {};
-  if (value === '' || value == null) { ws[ref].v = ''; ws[ref].t = 's'; }
-  else { ws[ref].v = value; ws[ref].t = typeof value === 'number' ? 'n' : 's'; }
-}
-
-function _fillFiche(ws, fiche, weeks, schedule, year) {
-  for (const week of weeks) {
-    const { isoWeek, dataRowOffset, colWorked, colCP, colAbs, colType } = week;
-    if (!isoWeek) continue;
-    for (let di = 0; di < 7; di++) {
-      const row     = fiche.base + dataRowOffset + di;
-      const date    = _isoWeekToDate(year, isoWeek, di + 1); // di+1 : lundi=1..dimanche=7
-      const dayData = schedule[_fmtDateKey(date)];
-      if (!dayData) continue;
-      const type  = dayData.type  || 'normal';
-      const hours = parseFloat(dayData.hours) || 0;
-      if (hours === 0 && type === 'normal') continue;
-      const val = hours; // cadres : demi-j, employés : heures — injection directe
-      if (type === 'CP' || type === 'CP Ancienneté') {
-        _setCell(ws, row, colWorked, 0);   _setCell(ws, row, colCP, val);
-        _setCell(ws, row, colAbs,    0);   _setCell(ws, row, colType, '');
-      } else if (type === 'Maladie') {
-        _setCell(ws, row, colWorked, 0);   _setCell(ws, row, colCP,   0);
-        _setCell(ws, row, colAbs,    val); _setCell(ws, row, colType, 'Maladie');
-      } else if (type === 'Événement Familial') {
-        _setCell(ws, row, colWorked, 0);   _setCell(ws, row, colCP,   0);
-        _setCell(ws, row, colAbs,    val); _setCell(ws, row, colType, 'Événement familial');
-      } else if (type === 'normal' || type === 'Formation') {
-        _setCell(ws, row, colWorked, val); _setCell(ws, row, colCP,   0);
-        _setCell(ws, row, colAbs,    0);   _setCell(ws, row, colType, '');
-      }
-      // Récupération / repos / Autre → laissé vide intentionnellement
-    }
-  }
-}
-
-async function fillAndDownloadSiegeFichier() {
-  if (!_siegeWorkbook || !_siegeAnalysis) return;
-  const btn   = document.getElementById('siegeFillBtn');
-  const logEl = document.getElementById('siegeProgressLog');
-  btn.disabled = true; btn.textContent = '⏳ Génération en cours…';
-  logEl.style.display = ''; logEl.innerHTML = '';
-  const log = msg => { logEl.innerHTML += msg + '<br>'; };
-
-  try {
-    const ws = _siegeWorkbook.Sheets['MASQUE COLLABORATEUR'];
-    const { year, weeks, fiches } = _siegeAnalysis;
-    log('📅 Semaines : ' + weeks.map(w=>w.label).join(', '));
-
-    const schedules = {}; const usersMap = {};
-    await Promise.all(fiches.map(async f => {
-      const user = allUsers.find(u => String(u.matricule||'').trim() === f.matricule);
-      if (!user) { log('⚠️ ' + f.matricule + ' — ' + f.nom + ' : non trouvé, ignoré.'); return; }
-      usersMap[f.matricule] = user;
-      try {
-        const doc = await db.collection('schedules').doc(user.username).get();
-        schedules[f.matricule] = doc.exists ? (doc.data().days || {}) : {};
-        log('✅ ' + f.nom + ' (' + f.categorie + ') → ' + Object.keys(schedules[f.matricule]).length + ' jours chargés');
-      } catch(e) { schedules[f.matricule] = {}; log('⚠️ ' + f.nom + ' : erreur chargement.'); }
-    }));
-
-    let filled = 0;
-    for (const f of fiches) {
-      if (!usersMap[f.matricule]) continue;
-      _fillFiche(ws, f, weeks, schedules[f.matricule] || {}, year);
-      filled++;
-    }
-    log('<br>📝 ' + filled + ' fiche(s) complétée(s). Téléchargement…');
-
-    const wbOut = XLSX.write(_siegeWorkbook, { bookType:'xlsm', type:'array', bookVBA:true });
-    const blob  = new Blob([wbOut], { type:'application/vnd.ms-excel.sheet.macroEnabled.12' });
-    const fname = _siegeFile.name.replace(/\.(xlsx|xlsm|xls)$/i, '') + '_COMPLÉTÉ.xlsm';
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fname; a.click();
-
-    logAudit('export_siege', 'Fichier siège généré : ' + fname + ' — ' + filled + ' collab(s)');
-    log('✅ Fichier "<strong>' + fname + '</strong>" téléchargé !');
-    toast('✅ ' + filled + ' collaborateur(s) exporté(s) !', 'success');
-  } catch(err) {
-    console.error(err); log('❌ Erreur : ' + err.message);
-    toast('Erreur génération : ' + err.message, 'error');
-  } finally {
-    btn.disabled = false; btn.textContent = '📥 Générer et télécharger le fichier complété';
-  }
-}
 
 // ═══════════════════════════════════════════════════════════════
 // TEAM VIEW — Toggle mensuelle / annuelle

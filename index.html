@@ -5853,64 +5853,55 @@ function _analyzeSiegeFileV2(wb) {
   const ws = wb.Sheets['MASQUE COLLABORATEUR'];
   if (!ws) { toast('Feuille "MASQUE COLLABORATEUR" introuvable dans ce fichier', 'error'); return null; }
 
-  // Global header (row 4 = index 3)
-  const year = parseInt(_swStr(ws, 3, 1)) || new Date().getFullYear();
-  const etablissement = _swStr(ws, 3, 8) || '—';
-  const moisRaw = _swStr(ws, 4, 8) || '—';
+  // Read year and month from file header (rows are 0-indexed)
+  const year    = parseInt(_swStr(ws, 3, 1)) || new Date().getFullYear();
+  const moisRaw = (_swStr(ws, 4, 8) || '').trim();
+  const etablissement = _swStr(ws, 3, 8) || '';
 
-  // Detect week numbers from fiche 0 (first fiche)
-  const sem1 = _swNum(ws, 9, 0); // row 10, col A
-  const sem2 = _swNum(ws, 9, 7); // row 10, col H
-
-  if (!sem1) { toast('Impossible de détecter les numéros de semaine dans la Fiche Horaire', 'error'); return null; }
-
-  // Derive all weeks
-  const w1 = sem1;
-  const w2 = sem2 || _swWrap(w1 + 1);
-  const w3 = _swWrap(w1 + 2);
-  const w4 = _swWrap(w1 + 3);
-
-  // Check if month has 5 weeks
+  // Convert month name to index
   const moisIdx = MOIS_FR.indexOf(moisRaw.toLowerCase());
-  let week5 = null;
-  if (moisIdx >= 0) {
-    const daysInMonth = new Date(year, moisIdx + 1, 0).getDate();
-    const weeksInMonth = new Set();
-    for (let d = 1; d <= daysInMonth; d++) {
-      weeksInMonth.add(getISOWeek(new Date(year, moisIdx, d)));
-    }
-    const allWeeks = [...weeksInMonth].sort((a,b)=>a-b);
-    if (allWeeks.length >= 5) week5 = allWeeks[4];
-  }
+  if (moisIdx < 0) { toast(`Mois non reconnu dans la Fiche : "${moisRaw}" — vérifiez le fichier`, 'error'); return null; }
 
-  // Week positions in sheet: 4 slots max
+  // Compute all ISO weeks contained in this month
+  const daysInMonth = new Date(year, moisIdx + 1, 0).getDate();
+  const weekSet = new Set();
+  for (let d = 1; d <= daysInMonth; d++) weekSet.add(getISOWeek(new Date(year, moisIdx, d)));
+  const allWeeks = [...weekSet].sort((a, b) => a - b);
+
+  const [w1, w2, w3, w4] = allWeeks;
+  const week5 = allWeeks.length >= 5 ? allWeeks[4] : null;
+
   const weekSlots = [
-    { isoWeek: w1, rowBase: 10, side: 'left'  },
-    { isoWeek: w2, rowBase: 10, side: 'right' },
-    { isoWeek: w3, rowBase: 18, side: 'left'  },
-    { isoWeek: w4, rowBase: 18, side: 'right' },
+    { isoWeek: w1,                      rowBase: 10, side: 'left'  },
+    { isoWeek: w2 || _swWrap(w1 + 1),   rowBase: 10, side: 'right' },
+    { isoWeek: w3 || _swWrap(w1 + 2),   rowBase: 18, side: 'left'  },
+    { isoWeek: w4 || _swWrap(w1 + 3),   rowBase: 18, side: 'right' },
   ];
 
-  // Parse fiches
-  const fiches = [];
-  for (let i = 0; i < 20; i++) {
-    const base = i * 33;
-    const matRaw = _swStr(ws, base + 7, 1);
-    const matricule = (matRaw && matRaw !== '0' && matRaw !== '#N/A') ? matRaw.trim() : '';
-    if (!matricule) continue;
-    const catRaw = _swStr(ws, base + 8, 7);
-    const isCadre = catRaw.toLowerCase().includes('cadre') || catRaw.toLowerCase().includes('forfait');
-    fiches.push({ index: i, base, matricule, isCadre });
-  }
+  // Collaborators come from the APP (allUsers), not from the file (file is blank)
+  const fiches = allUsers
+    .filter(u => u.matricule && String(u.matricule).trim() !== '' && String(u.matricule).trim() !== '0')
+    .slice(0, 20)
+    .map((u, i) => ({
+      index: i, base: i * 33,
+      matricule: String(u.matricule).trim(),
+      isCadre:   !!u.isCadre,
+      username:  u.username,
+      name:      u.name
+    }));
 
-  if (!fiches.length) { toast('Aucune fiche collaborateur trouvée (matricules vides)', 'warning'); return null; }
+  if (!fiches.length) { toast('Aucun collaborateur avec matricule trouvé dans l\'outil', 'warning'); return null; }
 
-  return { year, etablissement, moisRaw, weekSlots, week5, fiches };
+  return { year, moisRaw, moisIdx, etablissement, weekSlots, week5, fiches };
 }
 
 function _displaySiegeV2(a) {
   document.getElementById('siegeYear').textContent = a.year;
   document.getElementById('siegeMoisCourant').textContent = a.moisRaw;
+
+  // Pre-fill etablissement if detected in file
+  const etabEl = document.getElementById('siegeEtablissementInput');
+  if (etabEl && a.etablissement && !etabEl.value) etabEl.value = a.etablissement;
 
   const weekNums = a.weekSlots.map(w => 'S' + w.isoWeek);
   if (a.week5) weekNums.push('S' + a.week5 + ' ⚠️');
@@ -5924,27 +5915,27 @@ function _displaySiegeV2(a) {
     return `<div class="synth-cell"><div class="sc-month">Sem. ${ws.isoWeek}</div><div style="font-size:12px;font-weight:600;color:var(--navy)">${fmt(mon)} → ${fmt(sun)}</div></div>`;
   }).join('') + (a.week5 ? `<div class="synth-cell" style="border:1.5px solid var(--warn)"><div class="sc-month" style="color:var(--warn)">Sem. ${a.week5} ⚠️</div><div style="font-size:11px;color:var(--warn)">Non exportable</div></div>` : '');
 
-  // Collaborators
-  const warns = [];
+  // Collaborators list (from allUsers)
+  const noMat = allUsers.filter(u => !u.matricule || String(u.matricule).trim() === '' || String(u.matricule).trim() === '0');
   const lines = a.fiches.map(f => {
-    const user = allUsers.find(u => String(u.matricule||'').trim() === f.matricule);
-    const badge = user ? `<span style="color:#059669;font-weight:600">✅ ${user.name}</span>` : `<span style="color:#EF4444;font-weight:600">⚠️ Non trouvé dans l'outil</span>`;
-    if (!user) warns.push(f.matricule);
-    const cat = f.isCadre ? '<span style="font-size:10px;background:#EDE9FE;color:#5B21B6;padding:1px 6px;border-radius:4px">Cadre</span>' : '<span style="font-size:10px;background:#DBEAFE;color:#1E40AF;padding:1px 6px;border-radius:4px">Employé</span>';
+    const cat = f.isCadre
+      ? '<span style="font-size:10px;background:#EDE9FE;color:#5B21B6;padding:1px 6px;border-radius:4px">Cadre</span>'
+      : '<span style="font-size:10px;background:#DBEAFE;color:#1E40AF;padding:1px 6px;border-radius:4px">Employé</span>';
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--g200);font-size:12.5px;gap:8px">
-      <span><strong>${f.matricule}</strong> ${cat}</span>${badge}</div>`;
+      <span><strong>${f.matricule}</strong> ${cat}</span>
+      <span style="color:#059669;font-weight:600">✅ ${f.name}</span></div>`;
   });
-  document.getElementById('siegeFichesList').innerHTML = lines.join('') || '<p style="color:var(--g400);padding:8px 0;font-size:12px">Aucune fiche.</p>';
+  document.getElementById('siegeFichesList').innerHTML = lines.join('') || '<p style="color:var(--g400);font-size:12px">Aucun collaborateur.</p>';
 
   const warnEl = document.getElementById('siegeWarningMsg');
-  if (warns.length) {
+  if (noMat.length) {
     warnEl.style.display = '';
-    warnEl.innerHTML = `⚠️ <strong>${warns.length} matricule(s) non trouvé(s) :</strong> ${warns.join(', ')}.<br><small>Vérifiez que le matricule est renseigné dans chaque fiche collaborateur de l'outil.</small>`;
+    warnEl.innerHTML = `⚠️ <strong>${noMat.length} collaborateur(s) sans matricule</strong> (non exporté) : ${noMat.map(u=>u.name).join(', ')}.<br><small>Renseignez leur matricule dans la fiche collaborateur de l'outil pour les inclure.</small>`;
   } else { warnEl.style.display = 'none'; }
 
   if (a.week5) {
-    const w5warn = document.getElementById('siegeWeek5Warn');
-    if (w5warn) { w5warn.style.display = ''; w5warn.textContent = `⚠️ Ce mois comporte 5 semaines. La semaine ${a.week5} ne peut pas être intégrée dans la Fiche Horaire (structure fixe à 4 semaines).`; }
+    const w5el = document.getElementById('siegeWeek5Warn');
+    if (w5el) { w5el.style.display = ''; w5el.textContent = `⚠️ Ce mois comporte 5 semaines ISO. La semaine ${a.week5} ne peut pas être intégrée (la Fiche Horaire n'a que 4 slots).`; }
   }
 
   document.getElementById('siegeAnalysisCard').style.display = '';
@@ -6005,21 +5996,18 @@ async function fillAndDownloadSiegeFichier() {
 
     const { year, weekSlots, fiches } = _siegeAnalysis;
 
-    // Load Firebase schedules
+    // Load Firebase schedules (fiche already has username from allUsers)
     const schedules = {};
     await Promise.all(fiches.map(async f => {
-      const user = allUsers.find(u => String(u.matricule||'').trim() === f.matricule);
-      if (!user) { log(`⚠️ Matricule ${f.matricule} — non trouvé dans l'outil`); return; }
       try {
-        const snap = await db.collection('schedules').doc(user.username).get();
+        const snap = await db.collection('schedules').doc(f.username).get();
         schedules[f.matricule] = snap.exists ? (snap.data().days || {}) : {};
-        log(`✅ ${user.name} — ${Object.keys(schedules[f.matricule]).length} jours chargés`);
-      } catch(e) { schedules[f.matricule] = {}; log(`⚠️ ${f.matricule} — erreur lecture`); }
+        log(`✅ ${f.name} — ${Object.keys(schedules[f.matricule]).length} jours chargés`);
+      } catch(e) { schedules[f.matricule] = {}; log(`⚠️ ${f.matricule} (${f.name}) — erreur lecture`); }
     }));
 
-    // Col letters (0-indexed → Excel letter A=0)
-    const COL = c => String.fromCharCode(65 + c % 26); // works for A-Z
-    // Slot columns: Left=B(1),D(3),E(4),F(5)  Right=I(8),K(10),L(11),M(12)
+    // Column letters for day data cells
+    // Left week:  B(worked) D(cp) E(abs) F(type)   Right week: I(worked) K(cp) L(abs) M(type)
     const COLS_L = { worked:'B', cp:'D', abs:'E', type:'F' };
     const COLS_R = { worked:'I', cp:'K', abs:'L', type:'M' };
 
@@ -6027,6 +6015,9 @@ async function fillAndDownloadSiegeFichier() {
     for (const fiche of fiches) {
       const sched = schedules[fiche.matricule];
       if (sched == null) continue;
+
+      // Write matricule into the fiche (cell B at row base+8, 1-indexed)
+      _xmlSetCell(masqueDoc, 'B' + (fiche.base + 8), fiche.matricule);
 
       for (const slot of weekSlots) {
         const cols = slot.side === 'left' ? COLS_L : COLS_R;

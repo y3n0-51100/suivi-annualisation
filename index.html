@@ -14,6 +14,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 /* Dark mode */
@@ -1492,6 +1493,10 @@ body.mobile-nav-open .mobile-backdrop{display:block}
             <div class="synth-grid" id="siegeWeekRanges"></div>
           </div>
           <div id="siegeWeek5Warn" style="display:none;margin-bottom:12px;padding:10px 14px;background:#FFFBEB;border-radius:8px;border-left:3px solid var(--warn);font-size:12px;color:#92400E"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+            <div><div style="font-size:11px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px">Enseigne</div><input id="siegeEnseigneInput" type="text" placeholder="Ex : But" style="width:100%;padding:8px 12px;border:1.5px solid var(--g300);border-radius:8px;font-size:13px;font-family:inherit"></div>
+            <div><div style="font-size:11px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px">Nom du magasin</div><input id="siegeEtablissementInput" type="text" placeholder="Ex : Conflans en Jarnisy" style="width:100%;padding:8px 12px;border:1.5px solid var(--g300);border-radius:8px;font-size:13px;font-family:inherit"></div>
+          </div>
           <div style="font-size:11px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Collaborateurs détectés</div>
           <div id="siegeFichesList"></div>
           <div id="siegeWarningMsg" style="display:none;margin-top:12px;padding:10px 14px;background:#FFF7ED;border-radius:8px;border-left:3px solid #F97316;font-size:12px;color:#92400E"></div>
@@ -5947,7 +5952,7 @@ function _displaySiegeV2(a) {
 }
 
 async function fillAndDownloadSiegeFichier() {
-  if (!_siegeWorkbook || !_siegeAnalysis) return;
+  if (!_siegeFile || !_siegeAnalysis) return;
   const btn = document.getElementById('siegeFillBtn');
   const logEl = document.getElementById('siegeProgressLog');
   btn.disabled = true; btn.textContent = '⏳ Génération en cours…';
@@ -5955,26 +5960,69 @@ async function fillAndDownloadSiegeFichier() {
   const log = msg => { logEl.innerHTML += msg + '<br>'; };
 
   try {
-    const ws = _siegeWorkbook.Sheets['MASQUE COLLABORATEUR'];
+    if (typeof JSZip === 'undefined') throw new Error('JSZip non chargé — rechargez la page');
+
+    // Open xlsm as a zip — preserves ALL formatting, styles, VBA, formulas
+    const buf = await _siegeFile.arrayBuffer();
+    const zip = await JSZip.loadAsync(buf);
+    const parser = new DOMParser();
+
+    // Identify sheet paths from workbook relationships
+    const relsXml = await zip.file('xl/_rels/workbook.xml.rels').async('string');
+    const relsDoc = parser.parseFromString(relsXml, 'application/xml');
+    const wbXml  = await zip.file('xl/workbook.xml').async('string');
+    const wbDoc  = parser.parseFromString(wbXml, 'application/xml');
+
+    const ridPath = {};
+    for (let rel of relsDoc.getElementsByTagName('Relationship')) {
+      ridPath[rel.getAttribute('Id')] = 'xl/' + rel.getAttribute('Target').replace(/^\//,'');
+    }
+    let masquePath = null, synthPath = null;
+    for (let s of wbDoc.getElementsByTagName('sheet')) {
+      const name = s.getAttribute('name');
+      const rid  = s.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','id') || s.getAttribute('r:id');
+      if (name === 'MASQUE COLLABORATEUR') masquePath = ridPath[rid];
+      if (name === 'Synthèse Horaires')    synthPath  = ridPath[rid];
+    }
+    if (!masquePath) throw new Error('Feuille "MASQUE COLLABORATEUR" introuvable dans ce fichier');
+
+    // Parse sheets
+    const masqueXml = await zip.file(masquePath).async('string');
+    const masqueDoc = parser.parseFromString(masqueXml, 'application/xml');
+    let synthDoc = null;
+    if (synthPath) {
+      const synthXml = await zip.file(synthPath).async('string');
+      synthDoc = parser.parseFromString(synthXml, 'application/xml');
+    }
+
+    // Fill Synthèse header (Enseigne D4, Etablissement I4)
+    const enseigne      = (document.getElementById('siegeEnseigneInput')?.value || '').trim();
+    const etablissement = (document.getElementById('siegeEtablissementInput')?.value || '').trim();
+    if (synthDoc) {
+      if (enseigne)      _xmlSetCell(synthDoc, 'D4', enseigne);
+      if (etablissement) _xmlSetCell(synthDoc, 'I4', etablissement);
+    }
+
     const { year, weekSlots, fiches } = _siegeAnalysis;
 
-    // Left/right column sets
-    const COLS_L = { worked:1, cp:3, abs:4, type:5 };
-    const COLS_R = { worked:8, cp:10, abs:11, type:12 };
-
-    // Load schedules
+    // Load Firebase schedules
     const schedules = {};
     await Promise.all(fiches.map(async f => {
       const user = allUsers.find(u => String(u.matricule||'').trim() === f.matricule);
-      if (!user) { log(`⚠️ Matricule ${f.matricule} — non trouvé, ignoré`); return; }
+      if (!user) { log(`⚠️ Matricule ${f.matricule} — non trouvé dans l'outil`); return; }
       try {
-        const doc = await db.collection('schedules').doc(user.username).get();
-        schedules[f.matricule] = doc.exists ? (doc.data().days || {}) : {};
+        const snap = await db.collection('schedules').doc(user.username).get();
+        schedules[f.matricule] = snap.exists ? (snap.data().days || {}) : {};
         log(`✅ ${user.name} — ${Object.keys(schedules[f.matricule]).length} jours chargés`);
-      } catch(e) { schedules[f.matricule] = {}; log(`⚠️ ${f.matricule} — erreur chargement`); }
+      } catch(e) { schedules[f.matricule] = {}; log(`⚠️ ${f.matricule} — erreur lecture`); }
     }));
 
-    // Fill fiches
+    // Col letters (0-indexed → Excel letter A=0)
+    const COL = c => String.fromCharCode(65 + c % 26); // works for A-Z
+    // Slot columns: Left=B(1),D(3),E(4),F(5)  Right=I(8),K(10),L(11),M(12)
+    const COLS_L = { worked:'B', cp:'D', abs:'E', type:'F' };
+    const COLS_R = { worked:'I', cp:'K', abs:'L', type:'M' };
+
     let filled = 0;
     for (const fiche of fiches) {
       const sched = schedules[fiche.matricule];
@@ -5984,51 +6032,126 @@ async function fillAndDownloadSiegeFichier() {
         const cols = slot.side === 'left' ? COLS_L : COLS_R;
         for (let di = 0; di < 7; di++) {
           const date = _swIsoToDate(year, slot.isoWeek, di + 1);
-          const key = _swFmtKey(date);
-          const row = fiche.base + slot.rowBase + di;
-          const dayData = sched[key];
+          const key  = _swFmtKey(date);
+          const excelRow = fiche.base + slot.rowBase + di + 1; // 1-indexed
+          const dayData  = sched[key];
+
+          const wRef = cols.worked + excelRow;
+          const cRef = cols.cp     + excelRow;
+          const aRef = cols.abs    + excelRow;
+          const tRef = cols.type   + excelRow;
+
           if (!dayData) continue;
-          const type = dayData.type || 'normal';
+          const type  = dayData.type || 'normal';
           const hours = parseFloat(dayData.hours) || 0;
           if (hours === 0 && type === 'normal') continue;
 
+          // Cadres : heures → demi-journées (7h = 2 dj, 3.5h = 1 dj)
+          const val = fiche.isCadre ? Math.round(hours / 3.5) : hours;
+
           if (type === 'CP' || type === 'CP Ancienneté') {
-            _swSet(ws, row, cols.worked, 0); _swSet(ws, row, cols.cp, hours);
-            _swSet(ws, row, cols.abs, 0);    _swSet(ws, row, cols.type, '');
+            _xmlSetCell(masqueDoc, wRef, 0); _xmlSetCell(masqueDoc, cRef, val);
+            _xmlSetCell(masqueDoc, aRef, 0); _xmlSetCell(masqueDoc, tRef, '');
           } else if (type === 'Récupération') {
-            // intentionnellement vide
+            // laissé vide intentionnellement
           } else if (type === 'Maladie') {
-            _swSet(ws, row, cols.worked, 0); _swSet(ws, row, cols.cp, 0);
-            _swSet(ws, row, cols.abs, hours); _swSet(ws, row, cols.type, 'Maladie');
+            _xmlSetCell(masqueDoc, wRef, 0); _xmlSetCell(masqueDoc, cRef, 0);
+            _xmlSetCell(masqueDoc, aRef, val); _xmlSetCell(masqueDoc, tRef, 'Maladie');
           } else if (type === 'Événement Familial') {
-            _swSet(ws, row, cols.worked, 0); _swSet(ws, row, cols.cp, 0);
-            _swSet(ws, row, cols.abs, hours); _swSet(ws, row, cols.type, 'Décès famille');
+            _xmlSetCell(masqueDoc, wRef, 0); _xmlSetCell(masqueDoc, cRef, 0);
+            _xmlSetCell(masqueDoc, aRef, val); _xmlSetCell(masqueDoc, tRef, 'Décès famille');
           } else if (type === 'Autre') {
-            _swSet(ws, row, cols.worked, 0); _swSet(ws, row, cols.cp, 0);
-            _swSet(ws, row, cols.abs, hours); _swSet(ws, row, cols.type, 'Injustifiée');
+            _xmlSetCell(masqueDoc, wRef, 0); _xmlSetCell(masqueDoc, cRef, 0);
+            _xmlSetCell(masqueDoc, aRef, val); _xmlSetCell(masqueDoc, tRef, 'Injustifiée');
           } else {
-            // Normal ou Formation
-            _swSet(ws, row, cols.worked, hours); _swSet(ws, row, cols.cp, 0);
-            _swSet(ws, row, cols.abs, 0);         _swSet(ws, row, cols.type, '');
+            // Normal, Formation, etc.
+            _xmlSetCell(masqueDoc, wRef, val); _xmlSetCell(masqueDoc, cRef, 0);
+            _xmlSetCell(masqueDoc, aRef, 0);   _xmlSetCell(masqueDoc, tRef, '');
           }
         }
       }
       filled++;
     }
-    log(`<br>📝 ${filled} fiche(s) complétée(s). Téléchargement…`);
 
-    const wbOut = XLSX.write(_siegeWorkbook, { bookType:'xlsm', type:'array', bookVBA:true });
-    const blob = new Blob([wbOut], { type:'application/vnd.ms-excel.sheet.macroEnabled.12' });
-    const fname = _siegeFile.name.replace(/\.(xlsx|xlsm|xls)$/i, '') + '_COMPLÉTÉ.xlsm';
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fname; a.click();
-    logAudit('export_siege', `Fiche horaire générée : ${fname} — ${filled} collab(s)`);
-    log(`✅ Fichier téléchargé !`);
+    // Write modified sheets back into zip (everything else untouched)
+    const ser = new XMLSerializer();
+    zip.file(masquePath, ser.serializeToString(masqueDoc));
+    if (synthDoc && synthPath) zip.file(synthPath, ser.serializeToString(synthDoc));
+
+    log(`<br>📝 ${filled} fiche(s) remplies — génération du fichier…`);
+
+    const output = await zip.generateAsync({
+      type:'blob',
+      mimeType:'application/vnd.ms-excel.sheet.macroEnabled.12',
+      compression:'DEFLATE', compressionOptions:{ level:6 }
+    });
+    const fname = _siegeFile.name.replace(/\.(xlsx|xlsm|xls)$/i,'') + '_COMPLÉTÉ.xlsm';
+    const a = document.createElement('a'); a.href = URL.createObjectURL(output); a.download = fname; a.click();
+    logAudit('export_siege', `Fiche horaire (JSZip) : ${fname} — ${filled} collab(s)`);
+    log(`✅ Fichier téléchargé : ${fname}`);
     toast(`✅ ${filled} collaborateur(s) exporté(s) !`, 'success');
+
   } catch(err) {
     console.error(err); log('❌ Erreur : ' + err.message);
     toast('Erreur génération : ' + err.message, 'error');
   } finally {
     btn.disabled = false; btn.textContent = '📥 Générer et télécharger la Fiche Horaire complétée';
+  }
+}
+
+function _xmlSetCell(doc, ref, value) {
+  const m = ref.match(/([A-Z]+)(\d+)/);
+  if (!m) return;
+  const rowNum = parseInt(m[2]);
+  const colNum = m[1].split('').reduce((a,ch) => a*26 + ch.charCodeAt(0)-64, 0);
+
+  let sd = doc.querySelector('sheetData');
+  if (!sd) { const t = doc.getElementsByTagName('sheetData'); sd = t[0]; }
+  if (!sd) return;
+  const NS = sd.namespaceURI || 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+
+  // Find/create row
+  let row = null, rowIns = null;
+  for (let n of [...sd.children]) {
+    const r = parseInt(n.getAttribute('r')||'0');
+    if (r === rowNum) { row = n; break; }
+    if (r > rowNum && !rowIns) rowIns = n;
+  }
+  if (!row) {
+    row = doc.createElementNS(NS, 'row');
+    row.setAttribute('r', String(rowNum));
+    sd.insertBefore(row, rowIns||null);
+  }
+
+  // Find/create cell
+  let cell = null, cellIns = null;
+  for (let n of [...row.children]) {
+    const cr = n.getAttribute('r')||'';
+    if (cr === ref) { cell = n; break; }
+    const cc = (cr.match(/[A-Z]+/)||[''])[0].split('').reduce((a,ch)=>a*26+ch.charCodeAt(0)-64,0);
+    if (cc > colNum && !cellIns) cellIns = n;
+  }
+  if (!cell) {
+    if (value === '' || value == null) return;
+    cell = doc.createElementNS(NS, 'c');
+    cell.setAttribute('r', ref);
+    row.insertBefore(cell, cellIns||null);
+  }
+
+  const style = cell.getAttribute('s');
+  while (cell.firstChild) cell.removeChild(cell.firstChild);
+  cell.removeAttribute('t');
+  if (style) cell.setAttribute('s', style);
+
+  if (value === '' || value == null) return;
+  if (typeof value === 'number') {
+    const v = doc.createElementNS(NS, 'v'); v.textContent = String(value); cell.appendChild(v);
+  } else {
+    cell.setAttribute('t', 'inlineStr');
+    const is = doc.createElementNS(NS, 'is');
+    const t  = doc.createElementNS(NS, 't');
+    t.textContent = String(value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    is.appendChild(t); cell.appendChild(is);
   }
 }
 

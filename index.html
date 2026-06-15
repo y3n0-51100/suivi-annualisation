@@ -5854,13 +5854,28 @@ function _analyzeSiegeFileV2(wb) {
   if (!ws) { toast('Feuille "MASQUE COLLABORATEUR" introuvable dans ce fichier', 'error'); return null; }
 
   // Read year and month from file header (rows are 0-indexed)
-  const year    = parseInt(_swStr(ws, 3, 1)) || new Date().getFullYear();
-  const moisRaw = (_swStr(ws, 4, 8) || '').trim();
-  const etablissement = _swStr(ws, 3, 8) || '';
+  // Try MASQUE COLLABORATEUR first, then Synthèse Horaires as fallback
+  const ws2 = wb.Sheets['Synthèse Horaires'];
+  const year = parseInt(_swStr(ws, 3, 1)) || parseInt(ws2 && _swStr(ws2, 3, 1)) || new Date().getFullYear();
+  const etablissement = _swStr(ws, 3, 8) || (ws2 ? _swStr(ws2, 3, 8) : '') || '';
 
-  // Convert month name to index
-  const moisIdx = MOIS_FR.indexOf(moisRaw.toLowerCase());
-  if (moisIdx < 0) { toast(`Mois non reconnu dans la Fiche : "${moisRaw}" — vérifiez le fichier`, 'error'); return null; }
+  // Scan multiple candidate cells for the month name
+  const moisCandidates = [
+    ws  && _swStr(ws,  4, 8), ws  && _swStr(ws,  4, 7),
+    ws2 && _swStr(ws2, 4, 8), ws2 && _swStr(ws2, 4, 7),
+    ws  && _swStr(ws,  3, 8), ws2 && _swStr(ws2, 3, 8),
+  ];
+  let moisRaw = '', moisIdx = -1;
+  for (const c of moisCandidates) {
+    if (!c) continue;
+    const idx = MOIS_FR.indexOf(c.trim().toLowerCase());
+    if (idx >= 0) { moisRaw = c.trim(); moisIdx = idx; break; }
+  }
+  if (moisIdx < 0) {
+    const found = moisCandidates.filter(Boolean).join(' / ') || '(vide)';
+    toast(`Mois non reconnu dans la Fiche (valeurs lues : ${found}) — vérifiez que le fichier est bien le bon modèle`, 'error');
+    return null;
+  }
 
   // Compute all ISO weeks contained in this month
   const daysInMonth = new Date(year, moisIdx + 1, 0).getDate();

@@ -14,7 +14,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 /* Dark mode */
@@ -753,24 +752,23 @@ body.mobile-nav-open .mobile-backdrop{display:block}
         </div>
         <div class="nav-group-hd admin-only shut" style="display:none" onclick="toggleNavGrp(this)">📅 Planning <span class="chv">▼</span></div>
         <div class="nav-grp admin-only shut" style="display:none">
-          <div class="nav-item admin-only" data-page="manager" onclick="showPage('manager')" style="display:none"><span class="ni">⚙️</span><span>Gestion équipe</span></div>
           <div class="nav-item admin-only" data-page="admin-edit-planning" onclick="showPage('admin-edit-planning')" style="display:none"><span class="ni">✏️</span><span>Modifier planning</span></div>
           <div class="nav-item admin-only" data-page="pp-page" onclick="showPage('pp-page')" style="display:none"><span class="ni">🖨️</span><span>Impression planning</span></div>
         </div>
         <div class="nav-group-hd admin-only shut" style="display:none" onclick="toggleNavGrp(this)">📋 Absences & RH <span class="chv">▼</span></div>
         <div class="nav-grp admin-only shut" style="display:none">
           <div class="nav-item admin-only" data-page="manager-requests" onclick="showPage('manager-requests')" style="display:none"><span class="ni">✅</span><span>Demandes absence</span></div>
+          <div class="nav-item admin-only" data-page="manager-absences" onclick="showPage('manager-absences')" style="display:none"><span class="ni">👔</span><span>Mes Absences</span></div>
         </div>
         <div class="nav-group-hd admin-only shut" style="display:none" onclick="toggleNavGrp(this)">⚙️ Configuration <span class="chv">▼</span></div>
         <div class="nav-grp admin-only shut" style="display:none">
+          <div class="nav-item admin-only" data-page="manager" onclick="showPage('manager')" style="display:none"><span class="ni">⚙️</span><span>Gestion équipe</span></div>
           <div class="nav-item admin-only" data-page="holidays" onclick="showPage('holidays')" style="display:none"><span class="ni">🎌</span><span>Fériés &amp; Dimanches</span></div>
           <div class="nav-item admin-only" data-page="lock-months" onclick="showPage('lock-months')" style="display:none"><span class="ni">🔒</span><span>Blocage mois</span></div>
           <div class="nav-item admin-only" data-page="config-period" onclick="showPage('config-period')" style="display:none"><span class="ni">🗓</span><span>Config période</span></div>
-          <div class="nav-item admin-only" data-page="export-siege" onclick="showPage('export-siege')" style="display:none"><span class="ni">📤</span><span>Export Siège</span></div>
           <div class="nav-item admin-only" data-page="announcements" onclick="showPage('announcements')" style="display:none"><span class="ni">📢</span><span>Annonces</span></div>
           <div class="nav-item admin-only" data-page="audit-log" onclick="showPage('audit-log')" style="display:none"><span class="ni">📜</span><span>Historique</span></div>
           <div class="nav-item admin-only" data-page="snapshots" onclick="showPage('snapshots')" style="display:none"><span class="ni">💾</span><span>Sauvegardes</span></div>
-          <div class="nav-item admin-only" data-page="manager-absences" onclick="showPage('manager-absences')" style="display:none"><span class="ni">👔</span><span>Mes Absences</span></div>
           <div class="nav-item admin-only" data-page="all-reset" onclick="showPage('all-reset')" style="display:none"><span class="ni">💀</span><span>ALL RESET</span></div>
         </div>
       </nav>
@@ -1453,69 +1451,6 @@ body.mobile-nav-open .mobile-backdrop{display:block}
           <div style="display:flex;justify-content:flex-end;margin-top:14px">
             <button class="btn btn-primary" onclick="savePeriodConfig()">💾 Appliquer</button>
           </div>
-        </div>
-      </div>
-
-
-
-      <!-- ═══ PAGE: EXPORT SIÈGE ═══ -->
-      <div id="page-export-siege" class="page">
-        <div class="ph">
-          <h2>📤 Export Fiche Horaire Siège</h2>
-          <p>Importez la Fiche Horaire mensuelle · L'outil la complète automatiquement avec les plannings de l'équipe</p>
-        </div>
-        <div class="card" style="max-width:700px">
-          <div class="card-head"><div class="card-title">① Importer la Fiche Horaire</div></div>
-          <div class="doc-dropzone" id="siegeDropzone"
-               onclick="document.getElementById('siegeFileInput').click()"
-               ondragover="event.preventDefault();this.classList.add('drag-over')"
-               ondragleave="this.classList.remove('drag-over')"
-               ondrop="handleSiegeFileDrop(event)">
-            <div class="dz-icon">📊</div>
-            <div class="dz-text" id="siegeDropText">Cliquez ou glissez la Fiche Horaire (.xlsm / .xlsx)</div>
-            <div class="dz-hint">Fiche mensuelle reçue de la centrale RH — ne pas modifier la structure du fichier</div>
-          </div>
-          <input type="file" id="siegeFileInput" style="display:none" onchange="processSiegeFile(this.files[0])" accept=".xlsx,.xlsm,.xls">
-          <div id="siegeLoadingMsg" style="display:none;text-align:center;padding:14px;color:var(--g500);font-size:13px">⏳ Analyse du fichier en cours…</div>
-        </div>
-        <div class="card" style="max-width:700px;display:none" id="siegeAnalysisCard">
-          <div class="card-head">
-            <div class="card-title">② Analyse du fichier</div>
-            <button class="btn btn-secondary btn-sm" onclick="resetSiegeExport()">🔄 Changer de fichier</button>
-          </div>
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
-            <div class="synth-cell"><div class="sc-month">Mois</div><select id="siegeMoisSelect" onchange="_swRecompute()" style="width:100%;font-size:13px;font-weight:700;color:var(--navy);border:1px solid var(--g300);border-radius:6px;padding:3px 4px"><option value="-1">—</option></select></div>
-            <div class="synth-cell"><div class="sc-month">Année</div><input id="siegeYearInput" type="number" onchange="_swRecompute()" style="width:100%;font-size:13px;font-weight:700;color:var(--navy);border:1px solid var(--g300);border-radius:6px;padding:3px 4px"></div>
-            <div class="synth-cell"><div class="sc-month">Semaines</div><div style="font-size:13px;font-weight:700;color:var(--teal)" id="siegeWeeksDisplay">—</div></div>
-          </div>
-          <div style="margin-bottom:16px">
-            <div style="font-size:11px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Plages de dates</div>
-            <div class="synth-grid" id="siegeWeekRanges"></div>
-          </div>
-          <div id="siegeMoisWarn" style="display:none;margin-bottom:12px;padding:10px 14px;background:#FFFBEB;border-radius:8px;border-left:3px solid var(--warn);font-size:12px;color:#92400E"></div>
-          <div id="siegeWeek5Warn" style="display:none;margin-bottom:12px;padding:10px 14px;background:#FFFBEB;border-radius:8px;border-left:3px solid var(--warn);font-size:12px;color:#92400E"></div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
-            <div><div style="font-size:11px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px">Enseigne *</div><input id="siegeEnseigneInput" type="text" required placeholder="Ex : But" style="width:100%;padding:8px 12px;border:1.5px solid var(--g300);border-radius:8px;font-size:13px;font-family:inherit"></div>
-            <div><div style="font-size:11px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px">Nom du magasin *</div><input id="siegeEtablissementInput" type="text" required placeholder="Ex : Conflans en Jarnisy" style="width:100%;padding:8px 12px;border:1.5px solid var(--g300);border-radius:8px;font-size:13px;font-family:inherit"></div>
-          </div>
-          <div style="font-size:11px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Collaborateurs détectés</div>
-          <div id="siegeFichesList"></div>
-          <div id="siegeWarningMsg" style="display:none;margin-top:12px;padding:10px 14px;background:#FFF7ED;border-radius:8px;border-left:3px solid #F97316;font-size:12px;color:#92400E"></div>
-        </div>
-        <div class="card" style="max-width:700px;display:none" id="siegeGenerateCard">
-          <div class="card-head"><div class="card-title">③ Générer et télécharger</div></div>
-          <div style="padding:0 0 14px;font-size:13px;color:var(--g500);line-height:1.7">L'outil va remplir la Fiche Horaire avec les heures enregistrées dans les plannings pour chaque collaborateur correspondant. Les cellules sans données resteront vides.</div>
-          <div style="background:#F0FDF4;border-radius:8px;padding:12px 14px;font-size:12px;color:#166534;margin-bottom:16px;line-height:1.8">
-            <strong>Règles d'export :</strong><br>
-            • Heures travaillées → "Heures réalisées"<br>
-            • CP / CP Ancienneté → colonne CP en heures<br>
-            • Maladie → Absences + type "Maladie"<br>
-            • Événement Familial → Absences + type "Décès famille"<br>
-            • Récupération → non déclarée (laissée vide intentionnellement)<br>
-            • Autre → Absences + type "Injustifiée"
-          </div>
-          <button class="btn btn-primary" id="siegeFillBtn" onclick="fillAndDownloadSiegeFichier()" style="width:100%;padding:14px;font-size:15px">📥 Générer et télécharger la Fiche Horaire complétée</button>
-          <div id="siegeProgressLog" style="margin-top:12px;font-size:11px;color:var(--g400);display:none;line-height:1.8"></div>
         </div>
       </div>
 
@@ -3877,7 +3812,6 @@ function showPage(id) {
     case 'announcements':       loadAnnouncements(); break;
     case 'info-1607':           renderInfo1607(); break;
     case 'config-period':       initConfigPeriod(); break;
-    case 'export-siege':        initExportSiege(); break;
     case 'pp-page':             initPPPage(); break;
     case 'manager-absences':    renderManagerAbsencesPage(); break;
     case 'all-reset':           break;
@@ -4241,6 +4175,9 @@ function adminUpdateN(k, v) {
 
 function adminApplyPT() {
   if (!adminEditUserId) return;
+  const pwd = prompt('⚠️ Cette action va remplacer le planning du mois affiché.\nMot de passe administrateur requis pour confirmer :');
+  if (pwd === null) return;
+  if (pwd !== 'admin123') { toast('Mot de passe incorrect — action annulée', 'error'); return; }
   const user = allUsers.find(u=>u.username===adminEditUserId);
   const tp   = user?.typePlanning || {lundi:7,mardi:7,mercredi:7,jeudi:7,vendredi:7,samedi:0,dimanche:0};
   // Apply only on the selected month
@@ -5780,448 +5717,6 @@ document.addEventListener('keydown',e=>{
   }
   if (e.key==='Escape') document.querySelectorAll('.modal-overlay.open').forEach(m=>{ if(m.id!=='modalAnnouncement') m.classList.remove('open'); });
 });
-
-
-
-// ═══════════════════════════════════════════════════════════════
-// EXPORT SIÈGE v2 — Remplissage automatique de la Fiche Horaire
-// ═══════════════════════════════════════════════════════════════
-let _siegeFile = null, _siegeWorkbook = null, _siegeAnalysis = null;
-
-const MOIS_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-
-function _swNum(ws, r, c) {
-  const cell = ws[XLSX.utils.encode_cell({r, c})];
-  if (!cell || cell.v == null) return null;
-  if (typeof cell.v === 'number' && cell.v >= 1 && cell.v <= 53) return Math.round(cell.v);
-  if (typeof cell.v === 'string') { const m = cell.v.match(/\b(\d{1,2})\b/); return m ? parseInt(m[1]) : null; }
-  return null;
-}
-function _swStr(ws, r, c) {
-  const cell = ws[XLSX.utils.encode_cell({r, c})];
-  return (cell && cell.v != null) ? String(cell.v).trim() : '';
-}
-function _swSet(ws, r, c, value) {
-  const ref = XLSX.utils.encode_cell({r, c});
-  if (!ws[ref]) ws[ref] = {};
-  if (value === '' || value == null) { ws[ref].v = ''; ws[ref].t = 's'; }
-  else { ws[ref].v = value; ws[ref].t = typeof value === 'number' ? 'n' : 's'; }
-  delete ws[ref].f;
-}
-function _swIsoToDate(year, isoWeek, dayOfWeek) {
-  const jan4 = new Date(year, 0, 4);
-  const dow = (jan4.getDay() + 6) % 7;
-  const mon = new Date(jan4); mon.setDate(jan4.getDate() - dow + (isoWeek - 1) * 7);
-  const d = new Date(mon); d.setDate(mon.getDate() + dayOfWeek - 1); return d;
-}
-function _swFmtKey(d) { return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-function _swWrap(w) { return w > 52 ? w - 52 : (w < 1 ? w + 52 : w); }
-
-function initExportSiege() { /* preserve state if already loaded */ }
-
-function resetSiegeExport() {
-  _siegeFile = null; _siegeWorkbook = null; _siegeAnalysis = null;
-  document.getElementById('siegeDropText').textContent = 'Cliquez ou glissez la Fiche Horaire (.xlsm / .xlsx)';
-  document.getElementById('siegeAnalysisCard').style.display = 'none';
-  document.getElementById('siegeGenerateCard').style.display = 'none';
-  document.getElementById('siegeLoadingMsg').style.display = 'none';
-  document.getElementById('siegeProgressLog').style.display = 'none';
-  document.getElementById('siegeDropzone').classList.remove('drag-over');
-}
-function handleSiegeFileDrop(e) {
-  e.preventDefault();
-  document.getElementById('siegeDropzone').classList.remove('drag-over');
-  if (e.dataTransfer.files[0]) processSiegeFile(e.dataTransfer.files[0]);
-}
-async function processSiegeFile(file) {
-  if (!file || !file.name.match(/\.(xlsx|xlsm|xls)$/i)) { toast('Fichier invalide — .xlsx ou .xlsm requis', 'error'); return; }
-  _siegeFile = file;
-  document.getElementById('siegeDropText').textContent = '📊 ' + file.name;
-  document.getElementById('siegeLoadingMsg').style.display = '';
-  document.getElementById('siegeAnalysisCard').style.display = 'none';
-  document.getElementById('siegeGenerateCard').style.display = 'none';
-  document.getElementById('siegeProgressLog').style.display = 'none';
-  try {
-    const buf = await file.arrayBuffer();
-    _siegeWorkbook = XLSX.read(buf, { type:'array', bookVBA:true, cellFormula:false });
-    _siegeAnalysis = _analyzeSiegeFileV2(_siegeWorkbook);
-    if (_siegeAnalysis) _displaySiegeV2(_siegeAnalysis);
-  } catch(err) { console.error(err); toast('Erreur lecture : ' + err.message, 'error'); }
-  finally { document.getElementById('siegeLoadingMsg').style.display = 'none'; }
-}
-
-function _swComputeWeekSlots(year, moisIdx) {
-  const daysInMonth = new Date(year, moisIdx + 1, 0).getDate();
-  const weekSet = new Set();
-  for (let d = 1; d <= daysInMonth; d++) weekSet.add(getISOWeek(new Date(year, moisIdx, d)));
-  const allWeeks = [...weekSet].sort((a, b) => a - b);
-  const [w1, w2, w3, w4] = allWeeks;
-  const week5 = allWeeks.length >= 5 ? allWeeks[4] : null;
-  const weekSlots = [
-    { isoWeek: w1,                     rowBase: 10, side: 'left'  },
-    { isoWeek: w2 || _swWrap(w1 + 1),  rowBase: 10, side: 'right' },
-    { isoWeek: w3 || _swWrap(w1 + 2),  rowBase: 18, side: 'left'  },
-    { isoWeek: w4 || _swWrap(w1 + 3),  rowBase: 18, side: 'right' },
-  ];
-  return { weekSlots, week5 };
-}
-
-function _analyzeSiegeFileV2(wb) {
-  const ws = wb.Sheets['MASQUE COLLABORATEUR'];
-  if (!ws) { toast('Feuille "MASQUE COLLABORATEUR" introuvable dans ce fichier', 'error'); return null; }
-
-  // Read year and month from file header (rows are 0-indexed)
-  // Try MASQUE COLLABORATEUR first, then Synthèse Horaires as fallback
-  const ws2 = wb.Sheets['Synthèse Horaires'];
-  const etablissement = _swStr(ws, 3, 8) || (ws2 ? _swStr(ws2, 3, 8) : '') || '';
-
-  // Scan multiple candidate cells for the month name
-  const moisCandidates = [
-    ws  && _swStr(ws,  4, 8), ws  && _swStr(ws,  4, 7),
-    ws2 && _swStr(ws2, 4, 8), ws2 && _swStr(ws2, 4, 7),
-    ws  && _swStr(ws,  3, 8), ws2 && _swStr(ws2, 3, 8),
-  ];
-  let moisRaw = '', moisIdx = -1;
-  for (const c of moisCandidates) {
-    if (!c) continue;
-    const idx = MOIS_FR.indexOf(c.trim().toLowerCase());
-    if (idx >= 0) { moisRaw = c.trim(); moisIdx = idx; break; }
-  }
-
-  // Année : essaie d'extraire depuis la chaîne "01 juin 2026 au 31 mai 2027." (MASQUE!D5 / Synthèse!C6),
-  // sinon depuis d'autres cellules, sinon année en cours.
-  const dateRangeStr = _swStr(ws, 4, 3) || (ws2 ? _swStr(ws2, 5, 2) : '') || '';
-  const yearMatch = dateRangeStr.match(/\b(20\d{2})\b/);
-  let year = yearMatch ? parseInt(yearMatch[1])
-    : (parseInt(_swStr(ws, 3, 1)) || parseInt(ws2 && _swStr(ws2, 3, 1)) || new Date().getFullYear());
-
-  // Si le mois n'a pas pu être détecté automatiquement (fichier totalement vierge),
-  // on ne bloque plus : l'utilisateur le choisit manuellement dans l'UI.
-  const moisDetected = moisIdx >= 0;
-  if (!moisDetected) moisIdx = new Date().getMonth();
-
-  const { weekSlots, week5 } = _swComputeWeekSlots(year, moisIdx);
-
-  // Collaborators come from the APP (allUsers), not from the file (file is blank).
-  // Les 5 premières fiches (lignes 8 à 140) sont réservées (ex: "Fiche 1 - DIR") —
-  // les collaborateurs du magasin commencent à la fiche 6 (matricule en B173).
-  const FICHE_START_BASE = 165; // base + 8 = ligne 173
-  const MAX_FICHES = 15;        // 20 fiches au total dans la feuille, 5 réservées
-  const fiches = allUsers
-    .filter(u => u.matricule && String(u.matricule).trim() !== '' && String(u.matricule).trim() !== '0')
-    .slice(0, MAX_FICHES)
-    .map((u, i) => ({
-      index: i, base: FICHE_START_BASE + i * 33,
-      matricule: String(u.matricule).trim(),
-      isCadre:   !!u.isCadre,
-      username:  u.username,
-      name:      u.name
-    }));
-
-  if (!fiches.length) { toast('Aucun collaborateur avec matricule trouvé dans l\'outil', 'warning'); return null; }
-
-  return { year, moisRaw, moisIdx, moisDetected, etablissement, weekSlots, week5, fiches };
-}
-
-function _swRecompute() {
-  if (!_siegeAnalysis) return;
-  const sel = document.getElementById('siegeMoisSelect');
-  const yearInput = document.getElementById('siegeYearInput');
-  const moisIdx = parseInt(sel.value);
-  const year = parseInt(yearInput.value) || new Date().getFullYear();
-  if (moisIdx < 0) return;
-  const { weekSlots, week5 } = _swComputeWeekSlots(year, moisIdx);
-  _siegeAnalysis.moisIdx = moisIdx;
-  _siegeAnalysis.year = year;
-  _siegeAnalysis.weekSlots = weekSlots;
-  _siegeAnalysis.week5 = week5;
-  _displaySiegeV2(_siegeAnalysis);
-}
-
-function _displaySiegeV2(a) {
-  const yearInput = document.getElementById('siegeYearInput');
-  if (yearInput) yearInput.value = a.year;
-
-  const sel = document.getElementById('siegeMoisSelect');
-  if (sel && sel.options.length <= 1) {
-    sel.innerHTML = MOIS_FR.map((m, i) => `<option value="${i}">${m.charAt(0).toUpperCase()+m.slice(1)}</option>`).join('');
-  }
-  if (sel) sel.value = a.moisIdx;
-
-  const moisWarnEl = document.getElementById('siegeMoisWarn');
-  if (moisWarnEl) {
-    if (!a.moisDetected) {
-      moisWarnEl.style.display = '';
-      moisWarnEl.textContent = '⚠️ Mois non détecté dans le fichier (fiche vierge) — sélectionnez-le manuellement ci-dessus.';
-    } else { moisWarnEl.style.display = 'none'; }
-  }
-
-  // Pre-fill etablissement if detected in file
-  const etabEl = document.getElementById('siegeEtablissementInput');
-  if (etabEl && a.etablissement && !etabEl.value) etabEl.value = a.etablissement;
-
-  const weekNums = a.weekSlots.map(w => 'S' + w.isoWeek);
-  if (a.week5) weekNums.push('S' + a.week5 + ' ⚠️');
-  document.getElementById('siegeWeeksDisplay').textContent = weekNums.join(', ');
-
-  // Date ranges
-  document.getElementById('siegeWeekRanges').innerHTML = a.weekSlots.map(ws => {
-    const mon = _swIsoToDate(a.year, ws.isoWeek, 1);
-    const sun = _swIsoToDate(a.year, ws.isoWeek, 7);
-    const fmt = d => d.toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'});
-    return `<div class="synth-cell"><div class="sc-month">Sem. ${ws.isoWeek}</div><div style="font-size:12px;font-weight:600;color:var(--navy)">${fmt(mon)} → ${fmt(sun)}</div></div>`;
-  }).join('') + (a.week5 ? `<div class="synth-cell" style="border:1.5px solid var(--warn)"><div class="sc-month" style="color:var(--warn)">Sem. ${a.week5} ⚠️</div><div style="font-size:11px;color:var(--warn)">Non exportable</div></div>` : '');
-
-  // Collaborators list (from allUsers)
-  const noMat = allUsers.filter(u => !u.matricule || String(u.matricule).trim() === '' || String(u.matricule).trim() === '0');
-  const lines = a.fiches.map(f => {
-    const cat = f.isCadre
-      ? '<span style="font-size:10px;background:#EDE9FE;color:#5B21B6;padding:1px 6px;border-radius:4px">Cadre</span>'
-      : '<span style="font-size:10px;background:#DBEAFE;color:#1E40AF;padding:1px 6px;border-radius:4px">Employé</span>';
-    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--g200);font-size:12.5px;gap:8px">
-      <span><strong>${f.matricule}</strong> ${cat}</span>
-      <span style="color:#059669;font-weight:600">✅ ${f.name}</span></div>`;
-  });
-  document.getElementById('siegeFichesList').innerHTML = lines.join('') || '<p style="color:var(--g400);font-size:12px">Aucun collaborateur.</p>';
-
-  const warnEl = document.getElementById('siegeWarningMsg');
-  if (noMat.length) {
-    warnEl.style.display = '';
-    warnEl.innerHTML = `⚠️ <strong>${noMat.length} collaborateur(s) sans matricule</strong> (non exporté) : ${noMat.map(u=>u.name).join(', ')}.<br><small>Renseignez leur matricule dans la fiche collaborateur de l'outil pour les inclure.</small>`;
-  } else { warnEl.style.display = 'none'; }
-
-  const w5el = document.getElementById('siegeWeek5Warn');
-  if (w5el) {
-    if (a.week5) { w5el.style.display = ''; w5el.textContent = `⚠️ Ce mois comporte 5 semaines ISO. La semaine ${a.week5} ne peut pas être intégrée (la Fiche Horaire n'a que 4 slots).`; }
-    else w5el.style.display = 'none';
-  }
-
-  document.getElementById('siegeAnalysisCard').style.display = '';
-  document.getElementById('siegeGenerateCard').style.display = '';
-}
-
-async function fillAndDownloadSiegeFichier() {
-  if (!_siegeFile || !_siegeAnalysis) return;
-  const btn = document.getElementById('siegeFillBtn');
-  const logEl = document.getElementById('siegeProgressLog');
-  btn.disabled = true; btn.textContent = '⏳ Génération en cours…';
-  logEl.style.display = ''; logEl.innerHTML = '';
-  const log = msg => { logEl.innerHTML += msg + '<br>'; };
-
-  try {
-    if (typeof JSZip === 'undefined') throw new Error('JSZip non chargé — rechargez la page');
-
-    // Open xlsm as a zip — preserves ALL formatting, styles, VBA, formulas
-    const buf = await _siegeFile.arrayBuffer();
-    const zip = await JSZip.loadAsync(buf);
-    const parser = new DOMParser();
-
-    // Identify sheet paths from workbook relationships
-    const relsXml = await zip.file('xl/_rels/workbook.xml.rels').async('string');
-    const relsDoc = parser.parseFromString(relsXml, 'application/xml');
-    const wbXml  = await zip.file('xl/workbook.xml').async('string');
-    const wbDoc  = parser.parseFromString(wbXml, 'application/xml');
-
-    const ridPath = {};
-    for (let rel of relsDoc.getElementsByTagName('Relationship')) {
-      ridPath[rel.getAttribute('Id')] = 'xl/' + rel.getAttribute('Target').replace(/^\//,'');
-    }
-    // Forcer Excel à TOUT recalculer à l'ouverture (VLOOKUP, IF, SUM…) — sinon
-    // les cellules qui dépendent des matricules (B173, B206…) gardent leur
-    // ancienne valeur en cache (#N/A) et rien ne "remonte" dans la fiche.
-    let calcPr = wbDoc.getElementsByTagName('calcPr')[0];
-    if (!calcPr) {
-      calcPr = wbDoc.createElementNS(wbDoc.documentElement.namespaceURI, 'calcPr');
-      wbDoc.documentElement.appendChild(calcPr);
-    }
-    calcPr.setAttribute('fullCalcOnLoad', '1');
-    calcPr.setAttribute('forceFullCalc', '1');
-
-    let masquePath = null, synthPath = null;
-    for (let s of wbDoc.getElementsByTagName('sheet')) {
-      const name = s.getAttribute('name');
-      const rid  = s.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','id') || s.getAttribute('r:id');
-      if (name === 'MASQUE COLLABORATEUR') masquePath = ridPath[rid];
-      if (name === 'Synthèse Horaires')    synthPath  = ridPath[rid];
-    }
-    if (!masquePath) throw new Error('Feuille "MASQUE COLLABORATEUR" introuvable dans ce fichier');
-
-    // Parse sheets
-    const masqueXml = await zip.file(masquePath).async('string');
-    const masqueDoc = parser.parseFromString(masqueXml, 'application/xml');
-    let synthDoc = null;
-    if (synthPath) {
-      const synthXml = await zip.file(synthPath).async('string');
-      synthDoc = parser.parseFromString(synthXml, 'application/xml');
-    }
-
-    // Fill Synthèse header (Enseigne D4, Etablissement I4, Mois en cours I5) —
-    // ces 3 cellules sont obligatoires : sans elles, le VLOOKUP des matricules
-    // dans MASQUE COLLABORATEUR ne fonctionne pas et rien n'apparaît dans la fiche.
-    const enseigne      = (document.getElementById('siegeEnseigneInput')?.value || '').trim();
-    const etablissement = (document.getElementById('siegeEtablissementInput')?.value || '').trim();
-    if (!enseigne || !etablissement) {
-      throw new Error('Enseigne et Nom du magasin sont obligatoires (page Synthèse Horaires) — renseignez-les avant de générer le fichier.');
-    }
-    if (!synthDoc) throw new Error('Feuille "Synthèse Horaires" introuvable dans ce fichier');
-
-    const { year, moisIdx, weekSlots, fiches } = _siegeAnalysis;
-    const moisLabel = MOIS_FR[moisIdx].charAt(0).toUpperCase() + MOIS_FR[moisIdx].slice(1);
-    _xmlSetCell(synthDoc, 'D4', enseigne);
-    _xmlSetCell(synthDoc, 'I4', etablissement);
-    _xmlSetCell(synthDoc, 'I5', moisLabel);
-    log(`✅ Synthèse Horaires : Enseigne=${enseigne}, Établissement=${etablissement}, Mois=${moisLabel}`);
-
-    // Load Firebase schedules (fiche already has username from allUsers)
-    const schedules = {};
-    await Promise.all(fiches.map(async f => {
-      try {
-        const snap = await db.collection('schedules').doc(f.username).get();
-        schedules[f.matricule] = snap.exists ? (snap.data().days || {}) : {};
-        log(`✅ ${f.name} — ${Object.keys(schedules[f.matricule]).length} jours chargés`);
-      } catch(e) { schedules[f.matricule] = {}; log(`⚠️ ${f.matricule} (${f.name}) — erreur lecture`); }
-    }));
-
-    // Column letters for day data cells
-    // Left week:  B(worked) D(cp) E(abs) F(type)   Right week: I(worked) K(cp) L(abs) M(type)
-    const COLS_L = { worked:'B', cp:'D', abs:'E', type:'F' };
-    const COLS_R = { worked:'I', cp:'K', abs:'L', type:'M' };
-
-    let filled = 0;
-    for (const fiche of fiches) {
-      const sched = schedules[fiche.matricule];
-      if (sched == null) continue;
-
-      // Write matricule into the fiche (cell B at row base+8, 1-indexed)
-      _xmlSetCell(masqueDoc, 'B' + (fiche.base + 8), fiche.matricule);
-
-      for (const slot of weekSlots) {
-        const cols = slot.side === 'left' ? COLS_L : COLS_R;
-        for (let di = 0; di < 7; di++) {
-          const date = _swIsoToDate(year, slot.isoWeek, di + 1);
-          const key  = _swFmtKey(date);
-          const excelRow = fiche.base + slot.rowBase + di + 1; // 1-indexed
-          const dayData  = sched[key];
-
-          const wRef = cols.worked + excelRow;
-          const cRef = cols.cp     + excelRow;
-          const aRef = cols.abs    + excelRow;
-          const tRef = cols.type   + excelRow;
-
-          if (!dayData) continue;
-          const type  = dayData.type || 'normal';
-          const hours = parseFloat(dayData.hours) || 0;
-          if (hours === 0 && type === 'normal') continue;
-
-          // Cadres : heures → demi-journées (7h = 2 dj, 3.5h = 1 dj)
-          const val = fiche.isCadre ? Math.round(hours / 3.5) : hours;
-
-          if (type === 'CP' || type === 'CP Ancienneté') {
-            _xmlSetCell(masqueDoc, wRef, 0); _xmlSetCell(masqueDoc, cRef, val);
-            _xmlSetCell(masqueDoc, aRef, 0); _xmlSetCell(masqueDoc, tRef, '');
-          } else if (type === 'Récupération') {
-            // laissé vide intentionnellement
-          } else if (type === 'Maladie') {
-            _xmlSetCell(masqueDoc, wRef, 0); _xmlSetCell(masqueDoc, cRef, 0);
-            _xmlSetCell(masqueDoc, aRef, val); _xmlSetCell(masqueDoc, tRef, 'Maladie');
-          } else if (type === 'Événement Familial') {
-            _xmlSetCell(masqueDoc, wRef, 0); _xmlSetCell(masqueDoc, cRef, 0);
-            _xmlSetCell(masqueDoc, aRef, val); _xmlSetCell(masqueDoc, tRef, 'Décès famille');
-          } else if (type === 'Autre') {
-            _xmlSetCell(masqueDoc, wRef, 0); _xmlSetCell(masqueDoc, cRef, 0);
-            _xmlSetCell(masqueDoc, aRef, val); _xmlSetCell(masqueDoc, tRef, 'Injustifiée');
-          } else {
-            // Normal, Formation, etc.
-            _xmlSetCell(masqueDoc, wRef, val); _xmlSetCell(masqueDoc, cRef, 0);
-            _xmlSetCell(masqueDoc, aRef, 0);   _xmlSetCell(masqueDoc, tRef, '');
-          }
-        }
-      }
-      filled++;
-    }
-
-    // Write modified sheets back into zip (everything else untouched)
-    const ser = new XMLSerializer();
-    zip.file(masquePath, ser.serializeToString(masqueDoc));
-    if (synthDoc && synthPath) zip.file(synthPath, ser.serializeToString(synthDoc));
-    zip.file('xl/workbook.xml', ser.serializeToString(wbDoc));
-
-    log(`<br>📝 ${filled} fiche(s) remplies — génération du fichier…`);
-
-    const output = await zip.generateAsync({
-      type:'blob',
-      mimeType:'application/vnd.ms-excel.sheet.macroEnabled.12',
-      compression:'DEFLATE', compressionOptions:{ level:6 }
-    });
-    const fname = _siegeFile.name.replace(/\.(xlsx|xlsm|xls)$/i,'') + '_COMPLÉTÉ.xlsm';
-    const a = document.createElement('a'); a.href = URL.createObjectURL(output); a.download = fname; a.click();
-    logAudit('export_siege', `Fiche horaire (JSZip) : ${fname} — ${filled} collab(s)`);
-    log(`✅ Fichier téléchargé : ${fname}`);
-    toast(`✅ ${filled} collaborateur(s) exporté(s) !`, 'success');
-
-  } catch(err) {
-    console.error(err); log('❌ Erreur : ' + err.message);
-    toast('Erreur génération : ' + err.message, 'error');
-  } finally {
-    btn.disabled = false; btn.textContent = '📥 Générer et télécharger la Fiche Horaire complétée';
-  }
-}
-
-function _xmlSetCell(doc, ref, value) {
-  const m = ref.match(/([A-Z]+)(\d+)/);
-  if (!m) return;
-  const rowNum = parseInt(m[2]);
-  const colNum = m[1].split('').reduce((a,ch) => a*26 + ch.charCodeAt(0)-64, 0);
-
-  let sd = doc.querySelector('sheetData');
-  if (!sd) { const t = doc.getElementsByTagName('sheetData'); sd = t[0]; }
-  if (!sd) return;
-  const NS = sd.namespaceURI || 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
-
-  // Find/create row
-  let row = null, rowIns = null;
-  for (let n of [...sd.children]) {
-    const r = parseInt(n.getAttribute('r')||'0');
-    if (r === rowNum) { row = n; break; }
-    if (r > rowNum && !rowIns) rowIns = n;
-  }
-  if (!row) {
-    row = doc.createElementNS(NS, 'row');
-    row.setAttribute('r', String(rowNum));
-    sd.insertBefore(row, rowIns||null);
-  }
-
-  // Find/create cell
-  let cell = null, cellIns = null;
-  for (let n of [...row.children]) {
-    const cr = n.getAttribute('r')||'';
-    if (cr === ref) { cell = n; break; }
-    const cc = (cr.match(/[A-Z]+/)||[''])[0].split('').reduce((a,ch)=>a*26+ch.charCodeAt(0)-64,0);
-    if (cc > colNum && !cellIns) cellIns = n;
-  }
-  if (!cell) {
-    if (value === '' || value == null) return;
-    cell = doc.createElementNS(NS, 'c');
-    cell.setAttribute('r', ref);
-    row.insertBefore(cell, cellIns||null);
-  }
-
-  const style = cell.getAttribute('s');
-  while (cell.firstChild) cell.removeChild(cell.firstChild);
-  cell.removeAttribute('t');
-  if (style) cell.setAttribute('s', style);
-
-  if (value === '' || value == null) return;
-  if (typeof value === 'number') {
-    const v = doc.createElementNS(NS, 'v'); v.textContent = String(value); cell.appendChild(v);
-  } else {
-    cell.setAttribute('t', 'inlineStr');
-    const is = doc.createElementNS(NS, 'is');
-    const t  = doc.createElementNS(NS, 't');
-    t.textContent = String(value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    is.appendChild(t); cell.appendChild(is);
-  }
-}
 
 // ═══════════════════════════════════════════════════════════════
 // TEAM VIEW — Toggle mensuelle / annuelle

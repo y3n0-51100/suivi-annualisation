@@ -6026,6 +6026,17 @@ async function fillAndDownloadSiegeFichier() {
     for (let rel of relsDoc.getElementsByTagName('Relationship')) {
       ridPath[rel.getAttribute('Id')] = 'xl/' + rel.getAttribute('Target').replace(/^\//,'');
     }
+    // Forcer Excel à TOUT recalculer à l'ouverture (VLOOKUP, IF, SUM…) — sinon
+    // les cellules qui dépendent des matricules (B173, B206…) gardent leur
+    // ancienne valeur en cache (#N/A) et rien ne "remonte" dans la fiche.
+    let calcPr = wbDoc.getElementsByTagName('calcPr')[0];
+    if (!calcPr) {
+      calcPr = wbDoc.createElementNS(wbDoc.documentElement.namespaceURI, 'calcPr');
+      wbDoc.documentElement.appendChild(calcPr);
+    }
+    calcPr.setAttribute('fullCalcOnLoad', '1');
+    calcPr.setAttribute('forceFullCalc', '1');
+
     let masquePath = null, synthPath = null;
     for (let s of wbDoc.getElementsByTagName('sheet')) {
       const name = s.getAttribute('name');
@@ -6133,6 +6144,7 @@ async function fillAndDownloadSiegeFichier() {
     const ser = new XMLSerializer();
     zip.file(masquePath, ser.serializeToString(masqueDoc));
     if (synthDoc && synthPath) zip.file(synthPath, ser.serializeToString(synthDoc));
+    zip.file('xl/workbook.xml', ser.serializeToString(wbDoc));
 
     log(`<br>📝 ${filled} fiche(s) remplies — génération du fichier…`);
 

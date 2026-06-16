@@ -1484,14 +1484,15 @@ body.mobile-nav-open .mobile-backdrop{display:block}
             <button class="btn btn-secondary btn-sm" onclick="resetSiegeExport()">🔄 Changer de fichier</button>
           </div>
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
-            <div class="synth-cell"><div class="sc-month">Mois détecté</div><div style="font-size:14px;font-weight:700;color:var(--navy)" id="siegeMoisCourant">—</div></div>
-            <div class="synth-cell"><div class="sc-month">Année</div><div style="font-size:14px;font-weight:700;color:var(--navy)" id="siegeYear">—</div></div>
+            <div class="synth-cell"><div class="sc-month">Mois</div><select id="siegeMoisSelect" onchange="_swRecompute()" style="width:100%;font-size:13px;font-weight:700;color:var(--navy);border:1px solid var(--g300);border-radius:6px;padding:3px 4px"><option value="-1">—</option></select></div>
+            <div class="synth-cell"><div class="sc-month">Année</div><input id="siegeYearInput" type="number" onchange="_swRecompute()" style="width:100%;font-size:13px;font-weight:700;color:var(--navy);border:1px solid var(--g300);border-radius:6px;padding:3px 4px"></div>
             <div class="synth-cell"><div class="sc-month">Semaines</div><div style="font-size:13px;font-weight:700;color:var(--teal)" id="siegeWeeksDisplay">—</div></div>
           </div>
           <div style="margin-bottom:16px">
             <div style="font-size:11px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Plages de dates</div>
             <div class="synth-grid" id="siegeWeekRanges"></div>
           </div>
+          <div id="siegeMoisWarn" style="display:none;margin-bottom:12px;padding:10px 14px;background:#FFFBEB;border-radius:8px;border-left:3px solid var(--warn);font-size:12px;color:#92400E"></div>
           <div id="siegeWeek5Warn" style="display:none;margin-bottom:12px;padding:10px 14px;background:#FFFBEB;border-radius:8px;border-left:3px solid var(--warn);font-size:12px;color:#92400E"></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
             <div><div style="font-size:11px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px">Enseigne</div><input id="siegeEnseigneInput" type="text" placeholder="Ex : But" style="width:100%;padding:8px 12px;border:1.5px solid var(--g300);border-radius:8px;font-size:13px;font-family:inherit"></div>
@@ -5849,6 +5850,22 @@ async function processSiegeFile(file) {
   finally { document.getElementById('siegeLoadingMsg').style.display = 'none'; }
 }
 
+function _swComputeWeekSlots(year, moisIdx) {
+  const daysInMonth = new Date(year, moisIdx + 1, 0).getDate();
+  const weekSet = new Set();
+  for (let d = 1; d <= daysInMonth; d++) weekSet.add(getISOWeek(new Date(year, moisIdx, d)));
+  const allWeeks = [...weekSet].sort((a, b) => a - b);
+  const [w1, w2, w3, w4] = allWeeks;
+  const week5 = allWeeks.length >= 5 ? allWeeks[4] : null;
+  const weekSlots = [
+    { isoWeek: w1,                     rowBase: 10, side: 'left'  },
+    { isoWeek: w2 || _swWrap(w1 + 1),  rowBase: 10, side: 'right' },
+    { isoWeek: w3 || _swWrap(w1 + 2),  rowBase: 18, side: 'left'  },
+    { isoWeek: w4 || _swWrap(w1 + 3),  rowBase: 18, side: 'right' },
+  ];
+  return { weekSlots, week5 };
+}
+
 function _analyzeSiegeFileV2(wb) {
   const ws = wb.Sheets['MASQUE COLLABORATEUR'];
   if (!ws) { toast('Feuille "MASQUE COLLABORATEUR" introuvable dans ce fichier', 'error'); return null; }
@@ -5856,7 +5873,6 @@ function _analyzeSiegeFileV2(wb) {
   // Read year and month from file header (rows are 0-indexed)
   // Try MASQUE COLLABORATEUR first, then Synthèse Horaires as fallback
   const ws2 = wb.Sheets['Synthèse Horaires'];
-  const year = parseInt(_swStr(ws, 3, 1)) || parseInt(ws2 && _swStr(ws2, 3, 1)) || new Date().getFullYear();
   const etablissement = _swStr(ws, 3, 8) || (ws2 ? _swStr(ws2, 3, 8) : '') || '';
 
   // Scan multiple candidate cells for the month name
@@ -5871,27 +5887,20 @@ function _analyzeSiegeFileV2(wb) {
     const idx = MOIS_FR.indexOf(c.trim().toLowerCase());
     if (idx >= 0) { moisRaw = c.trim(); moisIdx = idx; break; }
   }
-  if (moisIdx < 0) {
-    const found = moisCandidates.filter(Boolean).join(' / ') || '(vide)';
-    toast(`Mois non reconnu dans la Fiche (valeurs lues : ${found}) — vérifiez que le fichier est bien le bon modèle`, 'error');
-    return null;
-  }
 
-  // Compute all ISO weeks contained in this month
-  const daysInMonth = new Date(year, moisIdx + 1, 0).getDate();
-  const weekSet = new Set();
-  for (let d = 1; d <= daysInMonth; d++) weekSet.add(getISOWeek(new Date(year, moisIdx, d)));
-  const allWeeks = [...weekSet].sort((a, b) => a - b);
+  // Année : essaie d'extraire depuis la chaîne "01 juin 2026 au 31 mai 2027." (MASQUE!D5 / Synthèse!C6),
+  // sinon depuis d'autres cellules, sinon année en cours.
+  const dateRangeStr = _swStr(ws, 4, 3) || (ws2 ? _swStr(ws2, 5, 2) : '') || '';
+  const yearMatch = dateRangeStr.match(/\b(20\d{2})\b/);
+  let year = yearMatch ? parseInt(yearMatch[1])
+    : (parseInt(_swStr(ws, 3, 1)) || parseInt(ws2 && _swStr(ws2, 3, 1)) || new Date().getFullYear());
 
-  const [w1, w2, w3, w4] = allWeeks;
-  const week5 = allWeeks.length >= 5 ? allWeeks[4] : null;
+  // Si le mois n'a pas pu être détecté automatiquement (fichier totalement vierge),
+  // on ne bloque plus : l'utilisateur le choisit manuellement dans l'UI.
+  const moisDetected = moisIdx >= 0;
+  if (!moisDetected) moisIdx = new Date().getMonth();
 
-  const weekSlots = [
-    { isoWeek: w1,                      rowBase: 10, side: 'left'  },
-    { isoWeek: w2 || _swWrap(w1 + 1),   rowBase: 10, side: 'right' },
-    { isoWeek: w3 || _swWrap(w1 + 2),   rowBase: 18, side: 'left'  },
-    { isoWeek: w4 || _swWrap(w1 + 3),   rowBase: 18, side: 'right' },
-  ];
+  const { weekSlots, week5 } = _swComputeWeekSlots(year, moisIdx);
 
   // Collaborators come from the APP (allUsers), not from the file (file is blank)
   const fiches = allUsers
@@ -5907,12 +5916,41 @@ function _analyzeSiegeFileV2(wb) {
 
   if (!fiches.length) { toast('Aucun collaborateur avec matricule trouvé dans l\'outil', 'warning'); return null; }
 
-  return { year, moisRaw, moisIdx, etablissement, weekSlots, week5, fiches };
+  return { year, moisRaw, moisIdx, moisDetected, etablissement, weekSlots, week5, fiches };
+}
+
+function _swRecompute() {
+  if (!_siegeAnalysis) return;
+  const sel = document.getElementById('siegeMoisSelect');
+  const yearInput = document.getElementById('siegeYearInput');
+  const moisIdx = parseInt(sel.value);
+  const year = parseInt(yearInput.value) || new Date().getFullYear();
+  if (moisIdx < 0) return;
+  const { weekSlots, week5 } = _swComputeWeekSlots(year, moisIdx);
+  _siegeAnalysis.moisIdx = moisIdx;
+  _siegeAnalysis.year = year;
+  _siegeAnalysis.weekSlots = weekSlots;
+  _siegeAnalysis.week5 = week5;
+  _displaySiegeV2(_siegeAnalysis);
 }
 
 function _displaySiegeV2(a) {
-  document.getElementById('siegeYear').textContent = a.year;
-  document.getElementById('siegeMoisCourant').textContent = a.moisRaw;
+  const yearInput = document.getElementById('siegeYearInput');
+  if (yearInput) yearInput.value = a.year;
+
+  const sel = document.getElementById('siegeMoisSelect');
+  if (sel && sel.options.length <= 1) {
+    sel.innerHTML = MOIS_FR.map((m, i) => `<option value="${i}">${m.charAt(0).toUpperCase()+m.slice(1)}</option>`).join('');
+  }
+  if (sel) sel.value = a.moisIdx;
+
+  const moisWarnEl = document.getElementById('siegeMoisWarn');
+  if (moisWarnEl) {
+    if (!a.moisDetected) {
+      moisWarnEl.style.display = '';
+      moisWarnEl.textContent = '⚠️ Mois non détecté dans le fichier (fiche vierge) — sélectionnez-le manuellement ci-dessus.';
+    } else { moisWarnEl.style.display = 'none'; }
+  }
 
   // Pre-fill etablissement if detected in file
   const etabEl = document.getElementById('siegeEtablissementInput');
@@ -5948,9 +5986,10 @@ function _displaySiegeV2(a) {
     warnEl.innerHTML = `⚠️ <strong>${noMat.length} collaborateur(s) sans matricule</strong> (non exporté) : ${noMat.map(u=>u.name).join(', ')}.<br><small>Renseignez leur matricule dans la fiche collaborateur de l'outil pour les inclure.</small>`;
   } else { warnEl.style.display = 'none'; }
 
-  if (a.week5) {
-    const w5el = document.getElementById('siegeWeek5Warn');
-    if (w5el) { w5el.style.display = ''; w5el.textContent = `⚠️ Ce mois comporte 5 semaines ISO. La semaine ${a.week5} ne peut pas être intégrée (la Fiche Horaire n'a que 4 slots).`; }
+  const w5el = document.getElementById('siegeWeek5Warn');
+  if (w5el) {
+    if (a.week5) { w5el.style.display = ''; w5el.textContent = `⚠️ Ce mois comporte 5 semaines ISO. La semaine ${a.week5} ne peut pas être intégrée (la Fiche Horaire n'a que 4 slots).`; }
+    else w5el.style.display = 'none';
   }
 
   document.getElementById('siegeAnalysisCard').style.display = '';

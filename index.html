@@ -1495,8 +1495,8 @@ body.mobile-nav-open .mobile-backdrop{display:block}
           <div id="siegeMoisWarn" style="display:none;margin-bottom:12px;padding:10px 14px;background:#FFFBEB;border-radius:8px;border-left:3px solid var(--warn);font-size:12px;color:#92400E"></div>
           <div id="siegeWeek5Warn" style="display:none;margin-bottom:12px;padding:10px 14px;background:#FFFBEB;border-radius:8px;border-left:3px solid var(--warn);font-size:12px;color:#92400E"></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
-            <div><div style="font-size:11px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px">Enseigne</div><input id="siegeEnseigneInput" type="text" placeholder="Ex : But" style="width:100%;padding:8px 12px;border:1.5px solid var(--g300);border-radius:8px;font-size:13px;font-family:inherit"></div>
-            <div><div style="font-size:11px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px">Nom du magasin</div><input id="siegeEtablissementInput" type="text" placeholder="Ex : Conflans en Jarnisy" style="width:100%;padding:8px 12px;border:1.5px solid var(--g300);border-radius:8px;font-size:13px;font-family:inherit"></div>
+            <div><div style="font-size:11px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px">Enseigne *</div><input id="siegeEnseigneInput" type="text" required placeholder="Ex : But" style="width:100%;padding:8px 12px;border:1.5px solid var(--g300);border-radius:8px;font-size:13px;font-family:inherit"></div>
+            <div><div style="font-size:11px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px">Nom du magasin *</div><input id="siegeEtablissementInput" type="text" required placeholder="Ex : Conflans en Jarnisy" style="width:100%;padding:8px 12px;border:1.5px solid var(--g300);border-radius:8px;font-size:13px;font-family:inherit"></div>
           </div>
           <div style="font-size:11px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Collaborateurs détectés</div>
           <div id="siegeFichesList"></div>
@@ -5902,12 +5902,16 @@ function _analyzeSiegeFileV2(wb) {
 
   const { weekSlots, week5 } = _swComputeWeekSlots(year, moisIdx);
 
-  // Collaborators come from the APP (allUsers), not from the file (file is blank)
+  // Collaborators come from the APP (allUsers), not from the file (file is blank).
+  // Les 5 premières fiches (lignes 8 à 140) sont réservées (ex: "Fiche 1 - DIR") —
+  // les collaborateurs du magasin commencent à la fiche 6 (matricule en B173).
+  const FICHE_START_BASE = 165; // base + 8 = ligne 173
+  const MAX_FICHES = 15;        // 20 fiches au total dans la feuille, 5 réservées
   const fiches = allUsers
     .filter(u => u.matricule && String(u.matricule).trim() !== '' && String(u.matricule).trim() !== '0')
-    .slice(0, 20)
+    .slice(0, MAX_FICHES)
     .map((u, i) => ({
-      index: i, base: i * 33,
+      index: i, base: FICHE_START_BASE + i * 33,
       matricule: String(u.matricule).trim(),
       isCadre:   !!u.isCadre,
       username:  u.username,
@@ -6040,15 +6044,22 @@ async function fillAndDownloadSiegeFichier() {
       synthDoc = parser.parseFromString(synthXml, 'application/xml');
     }
 
-    // Fill Synthèse header (Enseigne D4, Etablissement I4)
+    // Fill Synthèse header (Enseigne D4, Etablissement I4, Mois en cours I5) —
+    // ces 3 cellules sont obligatoires : sans elles, le VLOOKUP des matricules
+    // dans MASQUE COLLABORATEUR ne fonctionne pas et rien n'apparaît dans la fiche.
     const enseigne      = (document.getElementById('siegeEnseigneInput')?.value || '').trim();
     const etablissement = (document.getElementById('siegeEtablissementInput')?.value || '').trim();
-    if (synthDoc) {
-      if (enseigne)      _xmlSetCell(synthDoc, 'D4', enseigne);
-      if (etablissement) _xmlSetCell(synthDoc, 'I4', etablissement);
+    if (!enseigne || !etablissement) {
+      throw new Error('Enseigne et Nom du magasin sont obligatoires (page Synthèse Horaires) — renseignez-les avant de générer le fichier.');
     }
+    if (!synthDoc) throw new Error('Feuille "Synthèse Horaires" introuvable dans ce fichier');
 
-    const { year, weekSlots, fiches } = _siegeAnalysis;
+    const { year, moisIdx, weekSlots, fiches } = _siegeAnalysis;
+    const moisLabel = MOIS_FR[moisIdx].charAt(0).toUpperCase() + MOIS_FR[moisIdx].slice(1);
+    _xmlSetCell(synthDoc, 'D4', enseigne);
+    _xmlSetCell(synthDoc, 'I4', etablissement);
+    _xmlSetCell(synthDoc, 'I5', moisLabel);
+    log(`✅ Synthèse Horaires : Enseigne=${enseigne}, Établissement=${etablissement}, Mois=${moisLabel}`);
 
     // Load Firebase schedules (fiche already has username from allUsers)
     const schedules = {};

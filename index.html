@@ -738,6 +738,9 @@ body.mobile-nav-open .mobile-backdrop{display:block}
           <span class="ni">📋</span><span>Mes demandes</span>
           <span class="notif-badge" id="notifBadge"></span>
         </div>
+        <div class="nav-item employee-only" data-page="van" onclick="showPage('van')">
+          <span class="ni">🚐</span><span>Emprunt camion</span>
+        </div>
         <div class="nav-item employee-only" data-page="info-1607" onclick="showPage('info-1607')">
           <span class="ni">📚</span><span>Tout sur les 1607h</span>
         </div>
@@ -758,6 +761,7 @@ body.mobile-nav-open .mobile-backdrop{display:block}
         <div class="nav-group-hd admin-only shut" style="display:none" onclick="toggleNavGrp(this)">📋 Absences & RH <span class="chv">▼</span></div>
         <div class="nav-grp admin-only shut" style="display:none">
           <div class="nav-item admin-only" data-page="manager-requests" onclick="showPage('manager-requests')" style="display:none"><span class="ni">✅</span><span>Demandes absence</span></div>
+          <div class="nav-item admin-only" data-page="van-requests" onclick="showPage('van-requests')" style="display:none"><span class="ni">🚐</span><span>Demandes camion</span><span class="notif-badge" id="vanBadge" style="display:none"></span></div>
           <div class="nav-item admin-only" data-page="manager-absences" onclick="showPage('manager-absences')" style="display:none"><span class="ni">👔</span><span>Mes Absences</span></div>
         </div>
         <div class="nav-group-hd admin-only shut" style="display:none" onclick="toggleNavGrp(this)">⚙️ Configuration <span class="chv">▼</span></div>
@@ -1027,6 +1031,62 @@ body.mobile-nav-open .mobile-backdrop{display:block}
         <div id="myReqList"><div class="empty"><div class="ei">📭</div><h3>Aucune demande</h3></div></div>
       </div>
 
+      <!-- ═══ PAGE: EMPRUNT CAMIONNETTE ═══ -->
+      <div id="page-van" class="page">
+        <div class="ph">
+          <h2>🚐 Demande d'Emprunt de la Camionnette</h2>
+          <p>Réservez la camionnette du magasin · Soumise à l'accord du directeur</p>
+        </div>
+
+        <div class="card" style="max-width:660px">
+          <div class="card-head"><div class="card-title">Nouvelle demande d'emprunt</div></div>
+          <div class="form-row">
+            <div class="fg">
+              <label>Départ (date &amp; heure) *</label>
+              <input type="datetime-local" id="vanStart" onchange="onVanDatesChange()">
+            </div>
+            <div class="fg">
+              <label>Retour (date &amp; heure) *</label>
+              <input type="datetime-local" id="vanEnd" onchange="onVanDatesChange()">
+            </div>
+          </div>
+          <div id="vanParkingRow" class="fg" style="display:none">
+            <label id="vanParkingLabel">Lieu de stationnement la nuit *</label>
+            <input type="text" id="vanParking" placeholder="Ex : domicile — 12 rue des Lilas, 68000 Colmar">
+            <small id="vanParkingHint" style="color:var(--warn);font-size:11px;margin-top:4px;display:block">⚠️ Emprunt sur plusieurs jours ou le week-end : précisez où la camionnette stationnera la nuit.</small>
+          </div>
+          <div class="form-row">
+            <div class="fg">
+              <label>Votre adresse email *</label>
+              <input type="email" id="vanEmail" placeholder="prenom.nom@but.fr">
+            </div>
+            <div class="fg">
+              <label>Motif (optionnel)</label>
+              <input type="text" id="vanComment" placeholder="Ex : déménagement, transport matériel…">
+            </div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:6px">
+            <button class="btn btn-secondary" onclick="clearVanForm()">Annuler</button>
+            <button class="btn btn-primary" onclick="submitVanRequest()">📨 Soumettre la demande</button>
+          </div>
+        </div>
+
+        <div class="card" style="max-width:620px">
+          <div class="card-head"><div class="card-title">ℹ️ Bon à savoir</div></div>
+          <p style="font-size:13px;color:var(--g500);line-height:1.8">
+            • Toute demande doit être faite <strong>au moins 48h à l'avance</strong>.<br>
+            • Le <strong>lieu de stationnement la nuit</strong> est obligatoire pour un emprunt sur plusieurs jours ou couvrant le week-end (à partir du samedi soir).<br>
+            • Le directeur reçoit votre demande par email et peut l'<strong>approuver</strong> ou la <strong>refuser</strong>.<br>
+            • Vous êtes notifié(e) par email de la décision.
+          </p>
+        </div>
+
+        <div class="card" style="max-width:660px">
+          <div class="card-head"><div class="card-title">📋 Mes demandes d'emprunt</div></div>
+          <div id="myVanList"><div class="empty"><div class="ei">📭</div><h3>Aucune demande</h3></div></div>
+        </div>
+      </div>
+
       <!-- ═══ PAGE: TOUT SUR LES 1607H ═══ -->
       <div id="page-info-1607" class="page">
         <div class="ph">
@@ -1146,6 +1206,26 @@ body.mobile-nav-open .mobile-backdrop{display:block}
           </div>
         </div>
         <div id="mgrReqList"><div class="empty"><div class="ei">📭</div><h3>Aucune demande</h3></div></div>
+      </div>
+
+      <!-- ═══ PAGE: GESTION DEMANDES CAMIONNETTE (ADMIN) ═══ -->
+      <div id="page-van-requests" class="page">
+        <div class="ph">
+          <h2>🚐 Gestion des Demandes d'Emprunt</h2>
+          <p>Validez ou refusez les demandes d'emprunt de la camionnette</p>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:18px">
+          <div style="display:flex;gap:7px;flex-wrap:wrap">
+            <div class="ftab active" onclick="filterVanReqs('all',this)">Toutes</div>
+            <div class="ftab" onclick="filterVanReqs('pending',this)">En attente</div>
+            <div class="ftab" onclick="filterVanReqs('approved',this)">Approuvées</div>
+            <div class="ftab" onclick="filterVanReqs('waiting',this)">En cours</div>
+            <div class="ftab" onclick="filterVanReqs('rejected',this)">Refusées</div>
+            <div class="ftab" onclick="filterVanReqs('cancelled',this)">Annulées</div>
+            <div class="ftab" onclick="filterVanReqs('archived',this)">🗂 Archivées</div>
+          </div>
+        </div>
+        <div id="vanReqList"><div class="empty"><div class="ei">📭</div><h3>Aucune demande</h3></div></div>
       </div>
 
       <!-- ═══ PAGE: JOURS FÉRIÉS & DIMANCHES OUVERTS (ADMIN) ═══ -->
@@ -1850,7 +1930,7 @@ async function boot() {
 
   const p = new URLSearchParams(window.location.search);
   if (p.get('action') && p.get('requestId')) {
-    sessionStorage.setItem('pendingAction', JSON.stringify({action:p.get('action'),requestId:p.get('requestId')}));
+    sessionStorage.setItem('pendingAction', JSON.stringify({action:p.get('action'),requestId:p.get('requestId'),kind:p.get('kind')||'absence'}));
     window.history.replaceState({}, '', window.location.pathname);
   }
 
@@ -1968,9 +2048,13 @@ async function afterLogin() {
 
   const pa = sessionStorage.getItem('pendingAction');
   if (pa && currentUser.role==='admin') {
-    const {action,requestId} = JSON.parse(pa);
+    const {action,requestId,kind} = JSON.parse(pa);
     sessionStorage.removeItem('pendingAction');
-    setTimeout(() => processRequestAction(requestId, action), 800);
+    setTimeout(() => kind==='van' ? processVanRequestAction(requestId, action) : processRequestAction(requestId, action), 800);
+  }
+  // Pré-calculer le badge de demandes camion (admin)
+  if (currentUser.role === 'admin') {
+    setTimeout(() => { try { refreshVanBadge(); } catch(e) {} }, 500);
   }
 }
 
@@ -3364,6 +3448,291 @@ async function processRequestAction(requestId, action) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// EMPRUNT CAMIONNETTE
+// ═══════════════════════════════════════════════════════════════
+const VAN_MIN_HOURS = 48; // délai minimal avant le départ
+
+function fmtDateTimeFr(s) {
+  if (!s) return '';
+  const d = new Date(s);
+  if (isNaN(d)) return s;
+  return d.toLocaleString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+}
+
+// Stationnement de nuit requis : emprunt sur plusieurs jours OU week-end à partir du samedi soir
+function vanNeedsParking(startStr, endStr) {
+  if (!startStr || !endStr) return false;
+  const s = new Date(startStr), e = new Date(endStr);
+  if (isNaN(s) || isNaN(e) || e <= s) return false;
+  // Nuitée : dates calendaires différentes
+  if (s.toDateString() !== e.toDateString()) return true;
+  // Même jour mais samedi soir (à partir de 18h)
+  if (s.getDay() === 6 && e.getHours() >= 18) return true;
+  return false;
+}
+
+function onVanDatesChange() {
+  const s = document.getElementById('vanStart').value;
+  const e = document.getElementById('vanEnd').value;
+  const row = document.getElementById('vanParkingRow');
+  row.style.display = vanNeedsParking(s, e) ? '' : 'none';
+}
+
+function initVanPage() {
+  if (currentUser?.email && !document.getElementById('vanEmail').value)
+    document.getElementById('vanEmail').value = currentUser.email;
+  // Plancher des champs date = maintenant + 48h
+  const min = new Date(Date.now() + VAN_MIN_HOURS*3600*1000);
+  const minStr = new Date(min.getTime() - min.getTimezoneOffset()*60000).toISOString().slice(0,16);
+  document.getElementById('vanStart').min = minStr;
+  document.getElementById('vanEnd').min = minStr;
+  onVanDatesChange();
+  loadMyVanRequests();
+}
+
+function clearVanForm() {
+  ['vanStart','vanEnd','vanParking','vanComment'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('vanParkingRow').style.display = 'none';
+}
+
+async function submitVanRequest() {
+  const startStr = document.getElementById('vanStart').value;
+  const endStr   = document.getElementById('vanEnd').value;
+  const email    = document.getElementById('vanEmail').value.trim();
+  const comment  = document.getElementById('vanComment').value.trim();
+  const parking  = document.getElementById('vanParking').value.trim();
+
+  if (!startStr || !endStr || !email) { toast('Remplissez tous les champs obligatoires (*).','error'); return; }
+  const s = new Date(startStr), e = new Date(endStr);
+  if (e <= s) { toast('La date de retour doit être après la date de départ.','error'); return; }
+
+  // Règle des 48h
+  if ((s - new Date()) < VAN_MIN_HOURS*3600*1000) {
+    toast('Réservation impossible : il faut réserver au moins 48h à l\'avance.','error'); return;
+  }
+
+  // Stationnement de nuit obligatoire si emprunt multi-jours / week-end
+  const needsParking = vanNeedsParking(startStr, endStr);
+  if (needsParking && !parking) {
+    toast('Indiquez le lieu de stationnement de la camionnette la nuit.','error'); return;
+  }
+
+  // Anti-double-réservation : blocage si chevauchement avec une demande approuvée (camionnette unique)
+  try {
+    const snap = await db.collection('vanRequests').where('status','in',['pending','approved','waiting']).get();
+    const overlaps = [];
+    snap.forEach(doc => {
+      const r = doc.data();
+      if (new Date(r.dateStart) < e && new Date(r.dateEnd) > s) overlaps.push(r);
+    });
+    const approvedClash = overlaps.find(r => r.status === 'approved');
+    if (approvedClash) {
+      toast(`❌ Camionnette déjà réservée sur ce créneau (${approvedClash.userName} · ${fmtDateTimeFr(approvedClash.dateStart)} → ${fmtDateTimeFr(approvedClash.dateEnd)}).`,'error');
+      return;
+    }
+    if (overlaps.length) {
+      toast('⚠️ Une autre demande non encore traitée chevauche ce créneau — le directeur arbitrera.','warning');
+    }
+  } catch(e2) { console.warn('van overlap check:', e2); }
+
+  const dateLabel = `${fmtDateTimeFr(startStr)} → ${fmtDateTimeFr(endStr)}`;
+  const requestId = 'van_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
+  const req = { id:requestId, userId:uid(), userName:currentUser.name, userEmail:email,
+    dateStart:startStr, dateEnd:endStr, parking:parking||'', dateLabel, comment,
+    status:'pending', createdAt:firebase.firestore.FieldValue.serverTimestamp() };
+  try {
+    await db.collection('vanRequests').doc(requestId).set(req);
+    await sendVanRequestEmail(req);
+    clearVanForm();
+    toast('Demande d\'emprunt envoyée ! Vous serez notifié par email.','success');
+    loadMyVanRequests();
+  } catch(err) { toast('Erreur lors de l\'envoi.','error'); console.error(err); }
+}
+
+async function sendVanRequestEmail(req) {
+  const approveUrl = `${APP_URL}/?action=approve&kind=van&requestId=${req.id}`;
+  const rejectUrl  = `${APP_URL}/?action=reject&kind=van&requestId=${req.id}`;
+  const waitingUrl = `${APP_URL}/?action=waiting&kind=van&requestId=${req.id}`;
+  try {
+    emailjs.send(EJS_SERVICE, EJS_TPL_REQ, {
+      to_email:MANAGER_EMAIL, reply_to:req.userEmail,
+      subject: `Demande d'emprunt camionnette — ${req.userName}`,
+      employee_name:req.userName,
+      status_message:
+        `🚐 DEMANDE D'EMPRUNT DE LA CAMIONNETTE\n\n` +
+        `Collaborateur : ${req.userName}\n` +
+        `Départ : ${fmtDateTimeFr(req.dateStart)}\n` +
+        `Retour : ${fmtDateTimeFr(req.dateEnd)}\n` +
+        `Stationnement la nuit : ${req.parking||'— (non requis)'}\n` +
+        `Motif : ${req.comment||'Aucun'}\n\n` +
+        `Connectez-vous pour traiter cette demande : ${APP_URL}`,
+      approve_url:approveUrl, reject_url:rejectUrl, waiting_url:waitingUrl,
+      request_id:req.id, manager_url:`${APP_URL}/?page=van-requests`
+    });
+  } catch(e) { console.warn('EmailJS van:',e); }
+}
+
+async function loadMyVanRequests() {
+  try {
+    const snap = await db.collection('vanRequests').where('userId','==',uid()).get();
+    const reqs = snap.docs.map(d=>d.data()).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+    const container = document.getElementById('myVanList');
+    if (!container) return;
+    if (!reqs.length) { container.innerHTML = `<div class="empty"><div class="ei">📭</div><h3>Aucune demande</h3></div>`; return; }
+    container.innerHTML = reqs.map(r=>`
+      <div class="req-card">
+        <div class="req-info">
+          <div class="req-emp">🚐 ${r.dateLabel||(fmtDateTimeFr(r.dateStart)+' → '+fmtDateTimeFr(r.dateEnd))}</div>
+          <div class="req-detail">${r.parking?'🅿️ '+escapeHtml(r.parking):''}${r.parking&&r.comment?' · ':''}${r.comment?escapeHtml(r.comment):''}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+          <span class="status-badge s-${r.status}">${statusLabel(r.status)}</span>
+          ${r.status!=='cancelled'&&r.status!=='rejected'
+            ? `<button class="btn btn-sm" style="background:#F3F4F6;color:#6B7280;border:1px solid #D1D5DB"
+                onclick="confirmCancelVanRequest('${r.id}')" title="Annuler cette demande">✕ Annuler</button>`
+            : ''}
+        </div>
+      </div>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+function confirmCancelVanRequest(requestId) {
+  if (window.confirm('Annuler cette demande d\'emprunt de camionnette ?')) cancelVanRequest(requestId);
+}
+
+async function cancelVanRequest(requestId) {
+  try {
+    await db.collection('vanRequests').doc(requestId).update({
+      status:'cancelled', cancelledAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    toast('Demande annulée.','success');
+    loadMyVanRequests();
+  } catch(e) { toast('Erreur lors de l\'annulation.','error'); console.error(e); }
+}
+
+// ─── Côté admin ───
+let allVanRequests = [];
+
+async function loadVanRequests(filter='all') {
+  try {
+    const snap = await db.collection('vanRequests').get();
+    allVanRequests = snap.docs.map(d=>d.data()).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+    renderVanRequests(filter);
+  } catch(e) { console.error(e); }
+}
+
+function renderVanRequests(filter) {
+  let list;
+  if (filter === 'archived')      list = allVanRequests.filter(r => r.status === 'archived');
+  else if (filter === 'all')      list = allVanRequests.filter(r => r.status !== 'archived');
+  else                            list = allVanRequests.filter(r => r.status === filter);
+  const container = document.getElementById('vanReqList');
+  if (!list.length) { container.innerHTML = `<div class="empty"><div class="ei">📭</div><h3>Aucune demande${filter!=='all'?' pour ce filtre':''}</h3></div>`; return; }
+  const isArchived = filter === 'archived';
+  container.innerHTML = list.map(r => `
+    <div class="req-card" style="gap:10px">
+      <div class="req-info" style="flex:1">
+        <div class="req-emp">${escapeHtml(r.userName)}</div>
+        <div class="req-detail">
+          🚐 <strong>${r.dateLabel||(fmtDateTimeFr(r.dateStart)+' → '+fmtDateTimeFr(r.dateEnd))}</strong>
+          ${r.parking ? `<br>🅿️ Stationnement nuit : <strong>${escapeHtml(r.parking)}</strong>` : ''}
+          ${r.comment ? `<br><em>${escapeHtml(r.comment)}</em>` : ''}
+          <br><small style="color:var(--g400)">Email : ${escapeHtml(r.userEmail||'')}</small>
+        </div>
+      </div>
+      <span class="status-badge s-${r.status}" style="margin-right:4px">${statusLabel(r.status)}</span>
+      <div class="req-actions">
+        ${!isArchived && r.status!=='approved' ? `<button class="btn btn-ok btn-sm" onclick="processVanRequest('${r.id}','approved')">✓ Approuver</button>` : ''}
+        ${!isArchived && r.status!=='waiting'  ? `<button class="btn btn-warn btn-sm" onclick="processVanRequest('${r.id}','waiting')">⏸ Attente</button>` : ''}
+        ${!isArchived && r.status!=='rejected' ? `<button class="btn btn-err btn-sm" onclick="processVanRequest('${r.id}','rejected')">✗ Refuser</button>` : ''}
+        ${!isArchived ? `<button class="btn btn-secondary btn-sm" onclick="archiveVanOne('${r.id}')" title="Archiver">🗂</button>` : ''}
+        ${isArchived  ? `<button class="btn btn-secondary btn-sm" onclick="unarchiveVanOne('${r.id}')">↩ Restaurer</button>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+function filterVanReqs(filter, el) {
+  document.querySelectorAll('#page-van-requests .ftab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  renderVanRequests(filter);
+}
+
+async function processVanRequest(requestId, newStatus) {
+  try {
+    await db.collection('vanRequests').doc(requestId).update({status:newStatus,processedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    const doc = await db.collection('vanRequests').doc(requestId).get();
+    const req = doc.data();
+    await sendVanResponseEmail(req, newStatus);
+    toast(`Demande d'emprunt ${statusLabel(newStatus).toLowerCase()} !`,'success');
+    logAudit('van_'+newStatus, `Emprunt camion de ${req.userName} (${req.dateLabel||req.dateStart}) → ${statusLabel(newStatus)}`);
+    await loadVanRequests();
+    refreshVanBadge();
+  } catch(e) { toast('Erreur lors du traitement.','error'); console.error(e); }
+}
+
+async function processVanRequestAction(requestId, action) {
+  if (!currentUser || currentUser.role!=='admin') return;
+  const statusMap = {approve:'approved',reject:'rejected',waiting:'waiting'};
+  const s = statusMap[action]; if (!s) return;
+  toast('Traitement en cours…','warning');
+  await processVanRequest(requestId, s);
+  showPage('van-requests');
+}
+
+async function sendVanResponseEmail(req, status) {
+  const statusMsg = {approved:'approuvée ✅',rejected:'refusée ❌',waiting:'mise en attente ⏸'}[status]||status;
+  try {
+    emailjs.send(EJS_SERVICE, EJS_TPL_RESP, {
+      to_email:req.userEmail, reply_to:MANAGER_EMAIL,
+      subject: `Votre demande d'emprunt de la camionnette a été ${statusMsg}`,
+      employee_name:req.userName,
+      status_message:
+        `🚐 RÉPONSE À VOTRE DEMANDE D'EMPRUNT\n\n` +
+        `Bonjour ${req.userName},\n\n` +
+        `Votre demande d'emprunt de la camionnette a été : ${statusMsg.toUpperCase()}\n\n` +
+        `Départ : ${fmtDateTimeFr(req.dateStart)}\n` +
+        `Retour : ${fmtDateTimeFr(req.dateEnd)}\n` +
+        (req.parking ? `Stationnement la nuit : ${req.parking}\n` : '') +
+        `\nConsultez vos demandes : ${APP_URL}`,
+      app_url:APP_URL
+    });
+  } catch(e) { console.warn('EmailJS van resp:',e); }
+}
+
+async function archiveVanOne(requestId) {
+  try {
+    const doc = await db.collection('vanRequests').doc(requestId).get();
+    const prev = doc.data()?.status || 'rejected';
+    await db.collection('vanRequests').doc(requestId).update({
+      status:'archived', previousStatus:prev, archivedAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    toast('Demande archivée 🗂','success');
+    await loadVanRequests();
+  } catch(e) { toast('Erreur archivage.','error'); console.error(e); }
+}
+
+async function unarchiveVanOne(requestId) {
+  try {
+    const doc = await db.collection('vanRequests').doc(requestId).get();
+    const prev = doc.data()?.previousStatus || 'rejected';
+    await db.collection('vanRequests').doc(requestId).update({ status:prev, archivedAt:null });
+    toast('Demande restaurée ↩','success');
+    await loadVanRequests();
+  } catch(e) { toast('Erreur restauration.','error'); console.error(e); }
+}
+
+async function refreshVanBadge() {
+  try {
+    const snap = await db.collection('vanRequests').where('status','==','pending').get();
+    const badge = document.getElementById('vanBadge');
+    if (!badge) return;
+    const n = snap.size;
+    if (n > 0) { badge.textContent = n > 9 ? '9+' : n; badge.style.display = 'block'; }
+    else badge.style.display = 'none';
+  } catch(e) {}
+}
+
+// ═══════════════════════════════════════════════════════════════
 // MANAGER — GESTION UTILISATEURS
 // ═══════════════════════════════════════════════════════════════
 async function loadUserList() {
@@ -3801,6 +4170,8 @@ function showPage(id) {
     case 'annualization':       refreshAbsenceInfoCards(); renderSynthese(); break;
     case 'team-planning':       renderTeamPlanning(currentTeamMonth); break;
     case 'my-requests':         loadMyRequests(); clearNotifBadge(); break;
+    case 'van':                 initVanPage(); break;
+    case 'van-requests':        loadVanRequests(); break;
     case 'manager':             loadUserList(); break;
     case 'manager-requests':    loadMgrRequests(); break;
     case 'holidays':            renderHolidayList(); renderOpenSundayList(); break;

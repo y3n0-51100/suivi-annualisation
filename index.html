@@ -436,6 +436,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .filter-tabs{display:flex;gap:7px;margin-bottom:18px;flex-wrap:wrap}
 .ftab{padding:7px 14px;border-radius:8px;border:1.5px solid var(--g300);background:#fff;font-size:12.5px;font-weight:500;cursor:pointer;transition:.18s;color:var(--g700)}
 .ftab.active{background:var(--navy);border-color:var(--navy);color:#fff}
+.ftab-count{font-size:11px;opacity:.75;font-weight:700}
 
 /* =========== HOLIDAY LIST =========== */
 .holiday-item{background:#fff;border-radius:11px;padding:13px 16px;box-shadow:0 1px 3px rgba(0,0,0,.05);margin-bottom:9px;display:flex;align-items:center;gap:12px}
@@ -1206,21 +1207,69 @@ body.mobile-nav-open .mobile-backdrop{display:block}
           <h2>✅ Gestion des Demandes d'Absence</h2>
           <p>Validez, modifiez ou refusez toutes les demandes — y compris celles déjà traitées</p>
         </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:18px">
-          <div style="display:flex;gap:7px;flex-wrap:wrap">
-            <div class="ftab active" onclick="filterReqs('all',this)">Toutes</div>
-            <div class="ftab" onclick="filterReqs('pending',this)">En attente</div>
-            <div class="ftab" onclick="filterReqs('approved',this)">Approuvées</div>
-            <div class="ftab" onclick="filterReqs('waiting',this)">En cours</div>
-            <div class="ftab" onclick="filterReqs('rejected',this)">Refusées</div>
-            <div class="ftab" onclick="filterReqs('cancelled',this)">Annulées</div>
-            <div class="ftab" onclick="filterReqs('archived',this)">🗂 Archivées</div>
+
+        <div class="card" style="padding:18px 20px;margin-bottom:16px">
+          <div class="form-row">
+            <div class="fg" style="margin-bottom:12px">
+              <label>🔎 Rechercher</label>
+              <input type="text" id="mgrReqSearch" placeholder="Nom, email, commentaire…" oninput="onMgrReqFilterChange()">
+            </div>
+            <div class="fg" style="margin-bottom:12px">
+              <label>👤 Collaborateur</label>
+              <select id="mgrReqUserFilter" onchange="onMgrReqFilterChange()">
+                <option value="all">Tous les collaborateurs</option>
+              </select>
+            </div>
           </div>
-          <div style="display:flex;gap:8px">
+          <div class="form-row">
+            <div class="fg" style="margin-bottom:12px">
+              <label>🏷 Type de demande</label>
+              <select id="mgrReqTypeFilter" onchange="onMgrReqFilterChange()">
+                <option value="all">Tous les types</option>
+              </select>
+            </div>
+            <div class="fg" style="margin-bottom:12px">
+              <label>📅 Période</label>
+              <select id="mgrReqPeriod" onchange="onMgrReqPeriodChange()">
+                <option value="all">Toutes les dates</option>
+                <option value="upcoming">À venir</option>
+                <option value="thisWeek">Cette semaine</option>
+                <option value="thisMonth">Ce mois-ci</option>
+                <option value="past">Passées</option>
+                <option value="custom">Période personnalisée…</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row" id="mgrReqCustomDates" style="display:none">
+            <div class="fg" style="margin-bottom:0"><label>Du</label><input type="date" id="mgrReqDateFrom" onchange="onMgrReqFilterChange()"></div>
+            <div class="fg" style="margin-bottom:0"><label>Au</label><input type="date" id="mgrReqDateTo" onchange="onMgrReqFilterChange()"></div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-top:4px">
+            <button class="btn btn-secondary btn-sm" onclick="resetMgrReqFilters()">↺ Réinitialiser les filtres</button>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:10px">
+          <div style="display:flex;gap:7px;flex-wrap:wrap" id="mgrReqTabs">
+            <div class="ftab active" onclick="filterReqs('all',this)">Toutes <span class="ftab-count" id="cnt-all"></span></div>
+            <div class="ftab" onclick="filterReqs('pending',this)">En attente <span class="ftab-count" id="cnt-pending"></span></div>
+            <div class="ftab" onclick="filterReqs('approved',this)">Approuvées <span class="ftab-count" id="cnt-approved"></span></div>
+            <div class="ftab" onclick="filterReqs('waiting',this)">En cours <span class="ftab-count" id="cnt-waiting"></span></div>
+            <div class="ftab" onclick="filterReqs('rejected',this)">Refusées <span class="ftab-count" id="cnt-rejected"></span></div>
+            <div class="ftab" onclick="filterReqs('cancelled',this)">Annulées <span class="ftab-count" id="cnt-cancelled"></span></div>
+            <div class="ftab" onclick="filterReqs('archived',this)">🗂 Archivées <span class="ftab-count" id="cnt-archived"></span></div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <select id="mgrReqSort" onchange="onMgrReqFilterChange()" style="padding:7px 10px;border:1.5px solid var(--g300);border-radius:8px;font-size:12px;background:#fff;color:var(--g700)">
+              <option value="recent">Plus récentes d'abord</option>
+              <option value="dateAsc">Date d'absence ↑</option>
+              <option value="dateDesc">Date d'absence ↓</option>
+            </select>
             <button class="btn btn-secondary btn-sm" onclick="archiveSelected()" style="font-size:12px">☑️ Archiver sélection</button>
             <button class="btn btn-secondary btn-sm" onclick="archiveAll()" style="font-size:12px">🗂 Tout archiver</button>
           </div>
         </div>
+        <div id="mgrReqResultCount" style="font-size:12px;color:var(--g500);margin-bottom:8px"></div>
         <div id="mgrReqList"><div class="empty"><div class="ei">📭</div><h3>Aucune demande</h3></div></div>
       </div>
 
@@ -3204,30 +3253,134 @@ async function cancelRequest(requestId) {
 // ═══════════════════════════════════════════════════════════════
 // MANAGER — GESTION DES DEMANDES
 // ═══════════════════════════════════════════════════════════════
-async function loadMgrRequests(filter='all') {
+async function loadMgrRequests() {
   try {
     const snap=await db.collection('absenceRequests').get();
     allMgrRequests=snap.docs.map(d=>d.data()).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
-    renderMgrRequests(filter);
+    initMgrReqFilterOptions();
+    renderMgrRequests();
   } catch(e) { console.error(e); }
 }
 
-function renderMgrRequests(filter) {
-  // "all" exclut les archivées, "archived" les affiche seules
-  let list;
-  if (filter === 'archived') {
-    list = allMgrRequests.filter(r => r.status === 'archived');
-  } else if (filter === 'all') {
-    list = allMgrRequests.filter(r => r.status !== 'archived');
-  } else {
-    list = allMgrRequests.filter(r => r.status === filter);
+// ─── Filtres de la page manager-requests ───
+let mgrReqFilters = { status:'all', userId:'all', type:'all', search:'', period:'all', dateFrom:'', dateTo:'', sort:'recent' };
+
+function initMgrReqFilterOptions() {
+  const uSel = document.getElementById('mgrReqUserFilter');
+  if (uSel) {
+    const prev = uSel.value || 'all';
+    const users = allUsers.filter(u => u.username !== 'admin').sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+    uSel.innerHTML = '<option value="all">Tous les collaborateurs</option>' +
+      users.map(u => `<option value="${u.username}">${u.name}</option>`).join('');
+    uSel.value = [...uSel.options].some(o=>o.value===prev) ? prev : 'all';
   }
+  const tSel = document.getElementById('mgrReqTypeFilter');
+  if (tSel) {
+    const prev = tSel.value || 'all';
+    tSel.innerHTML = '<option value="all">Tous les types</option>' +
+      Object.keys(ABS_TYPES).map(t => `<option value="${t}">${t}</option>`).join('');
+    tSel.value = [...tSel.options].some(o=>o.value===prev) ? prev : 'all';
+  }
+}
+
+function getMgrReqPeriodRange(period) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayKey = today.toISOString().slice(0,10);
+  if (period==='upcoming') return { from: todayKey, to: null };
+  if (period==='past')     return { from: null, to: todayKey };
+  if (period==='thisWeek') {
+    const dow = today.getDay();
+    const mon = new Date(today); mon.setDate(today.getDate() + (dow===0 ? -6 : 1-dow));
+    const sun = new Date(mon);   sun.setDate(mon.getDate()+6);
+    return { from: mon.toISOString().slice(0,10), to: sun.toISOString().slice(0,10) };
+  }
+  if (period==='thisMonth') {
+    const first = new Date(today.getFullYear(), today.getMonth(), 1);
+    const last  = new Date(today.getFullYear(), today.getMonth()+1, 0);
+    return { from: first.toISOString().slice(0,10), to: last.toISOString().slice(0,10) };
+  }
+  if (period==='custom') return { from: mgrReqFilters.dateFrom||null, to: mgrReqFilters.dateTo||null };
+  return { from:null, to:null };
+}
+
+function onMgrReqPeriodChange() {
+  const period = document.getElementById('mgrReqPeriod')?.value || 'all';
+  document.getElementById('mgrReqCustomDates').style.display = period==='custom' ? '' : 'none';
+  onMgrReqFilterChange();
+}
+
+function onMgrReqFilterChange() {
+  mgrReqFilters.search   = (document.getElementById('mgrReqSearch')?.value || '').trim().toLowerCase();
+  mgrReqFilters.userId   = document.getElementById('mgrReqUserFilter')?.value || 'all';
+  mgrReqFilters.type     = document.getElementById('mgrReqTypeFilter')?.value || 'all';
+  mgrReqFilters.period   = document.getElementById('mgrReqPeriod')?.value || 'all';
+  mgrReqFilters.dateFrom = document.getElementById('mgrReqDateFrom')?.value || '';
+  mgrReqFilters.dateTo   = document.getElementById('mgrReqDateTo')?.value || '';
+  mgrReqFilters.sort     = document.getElementById('mgrReqSort')?.value || 'recent';
+  renderMgrRequests();
+}
+
+function resetMgrReqFilters() {
+  mgrReqFilters = { status:'all', userId:'all', type:'all', search:'', period:'all', dateFrom:'', dateTo:'', sort:'recent' };
+  ['mgrReqSearch','mgrReqDateFrom','mgrReqDateTo'].forEach(id => { const el=document.getElementById(id); if (el) el.value=''; });
+  ['mgrReqUserFilter','mgrReqTypeFilter','mgrReqPeriod','mgrReqSort'].forEach(id => { const el=document.getElementById(id); if (el) el.value = id==='mgrReqSort' ? 'recent' : 'all'; });
+  document.getElementById('mgrReqCustomDates').style.display = 'none';
+  document.querySelectorAll('#mgrReqTabs .ftab').forEach(t=>t.classList.remove('active'));
+  document.querySelector('#mgrReqTabs .ftab')?.classList.add('active');
+  renderMgrRequests();
+}
+
+function matchesMgrReqBaseFilters(r, f) {
+  if (f.userId !== 'all' && r.userId !== f.userId) return false;
+  if (f.type !== 'all' && r.type !== f.type) return false;
+  if (f.search) {
+    const hay = [r.userName, r.userEmail, r.comment, r.type].filter(Boolean).join(' ').toLowerCase();
+    if (!hay.includes(f.search)) return false;
+  }
+  if (f.period !== 'all') {
+    const { from, to } = getMgrReqPeriodRange(f.period);
+    if (from && (r.dateEnd||r.date) < from) return false;
+    if (to && r.date > to) return false;
+  }
+  return true;
+}
+
+function updateMgrReqTabCounts() {
+  const f = mgrReqFilters;
+  const base = allMgrRequests.filter(r => matchesMgrReqBaseFilters(r, f));
+  const counts = { all:0, pending:0, approved:0, waiting:0, rejected:0, cancelled:0, archived:0 };
+  base.forEach(r => {
+    if (r.status !== 'archived') counts.all++;
+    if (counts[r.status] !== undefined) counts[r.status]++;
+  });
+  Object.keys(counts).forEach(k => {
+    const el = document.getElementById('cnt-'+k);
+    if (el) el.textContent = counts[k] ? `(${counts[k]})` : '';
+  });
+}
+
+function renderMgrRequests() {
+  const f = mgrReqFilters;
+  let list = allMgrRequests.filter(r => matchesMgrReqBaseFilters(r, f));
+
+  // "all" exclut les archivées, "archived" les affiche seules
+  if (f.status === 'archived') list = list.filter(r => r.status === 'archived');
+  else if (f.status === 'all') list = list.filter(r => r.status !== 'archived');
+  else list = list.filter(r => r.status === f.status);
+
+  if (f.sort === 'dateAsc')  list = list.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  if (f.sort === 'dateDesc') list = list.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+
+  updateMgrReqTabCounts();
+  const countEl = document.getElementById('mgrReqResultCount');
+  if (countEl) countEl.textContent = list.length ? `${list.length} demande${list.length>1?'s':''} affichée${list.length>1?'s':''}` : '';
+
   const container = document.getElementById('mgrReqList');
   if (!list.length) {
-    container.innerHTML = `<div class="empty"><div class="ei">📭</div><h3>Aucune demande${filter!=='all'?' pour ce filtre':''}</h3></div>`;
+    container.innerHTML = `<div class="empty"><div class="ei">📭</div><h3>Aucune demande</h3><p>Essayez d'élargir vos filtres.</p></div>`;
     return;
   }
-  const isArchived = filter === 'archived';
+  const isArchived = f.status === 'archived';
   container.innerHTML = list.map(r => `
     <div class="req-card" style="gap:10px">
       ${!isArchived ? `<input type="checkbox" class="req-check" data-id="${r.id}"
@@ -3252,10 +3405,11 @@ function renderMgrRequests(filter) {
     </div>`).join('');
 }
 
-async function filterReqs(filter, el) {
-  document.querySelectorAll('.ftab').forEach(t=>t.classList.remove('active'));
-  el.classList.add('active');
-  renderMgrRequests(filter);
+function filterReqs(filter, el) {
+  mgrReqFilters.status = filter;
+  document.querySelectorAll('#mgrReqTabs .ftab').forEach(t=>t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  renderMgrRequests();
 }
 
 async function archiveOne(requestId) {

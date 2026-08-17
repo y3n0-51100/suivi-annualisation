@@ -40,6 +40,9 @@ body.dark-mode .cal-table td,body.dark-mode .cal-table th{border-color:#334155}
 body.dark-mode .h-input,body.dark-mode .type-sel,body.dark-mode .note-input{background:#0F172A;color:#E2E8F0;border-color:#475569}
 body.dark-mode .modal{background:#1E293B;color:#E2E8F0}
 body.dark-mode .stat{background:#1E293B}
+body.dark-mode .before-entry-row td,body.dark-mode .t-preentry{background:repeating-linear-gradient(135deg,#1E293B,#1E293B 6px,#273449 6px,#273449 12px)!important;color:#64748B!important}
+body.dark-mode .entry-tag{background:#334155;color:#94A3B8}
+body.dark-mode .entry-banner{background:#1E293B;border-color:#4C1D95;color:#C7D2FE}
 /* Notification badge */
 .notif-badge{position:absolute;top:6px;right:10px;background:#EF4444;color:#fff;border-radius:10px;font-size:10px;font-weight:700;padding:1px 5px;min-width:16px;text-align:center;display:none}
 .nav-item{position:relative}
@@ -286,6 +289,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .holiday-open-row .dn,.holiday-closed-row .dn{font-weight:700!important}
 .locked-row td{opacity:.6;pointer-events:none}
 .locked-row td input,.locked-row td select{background:var(--g200)!important;cursor:not-allowed!important;pointer-events:none}
+/* Jours antérieurs à la date d'entrée dans l'entreprise (hors contrat) */
+.before-entry-row td{background:repeating-linear-gradient(135deg,#F1F3F7,#F1F3F7 6px,#E7EAF1 6px,#E7EAF1 12px)!important;color:var(--g400)!important;opacity:.75}
+.before-entry-row td input,.before-entry-row td select{background:transparent!important;border-color:transparent!important;color:var(--g400)!important;cursor:not-allowed!important;pointer-events:none}
+.entry-tag{display:inline-block;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748B;background:#E2E8F0;border-radius:5px;padding:1px 5px;margin-left:5px;vertical-align:middle}
+.entry-banner{display:flex;align-items:center;gap:6px;background:#EEF2FF;border:1px solid #C7D2FE;color:#3730A3;border-radius:9px;padding:9px 13px;margin-bottom:12px;font-size:12.5px;font-weight:600}
+.t-preentry{background:repeating-linear-gradient(135deg,#F1F3F7,#F1F3F7 4px,#E7EAF1 4px,#E7EAF1 8px)!important;color:var(--g400)!important;font-weight:700}
 .h-input{width:72px;padding:5px 8px;border:1.5px solid var(--g300);border-radius:6px;text-align:center;font-size:13px;font-family:'DM Sans',sans-serif;color:var(--text);transition:.2s}
 .h-input:focus{outline:none;border-color:var(--orange)}
 .h-input.cp-typed{background:var(--cp);border-color:#D4A000;color:var(--cp-text);font-weight:700}
@@ -871,6 +880,7 @@ body.mobile-nav-open .mobile-backdrop{display:block}
           </div>
           <div class="month-tabs" id="monthTabs"></div>
           <div id="lockedBanner" style="display:none" class="locked-banner">🔒 Ce mois est verrouillé par l'administrateur — modification impossible</div>
+          <div id="entryBanner" style="display:none" class="entry-banner"></div>
           <div class="cal-wrap" id="calContent"></div>
         </div>
       </div>
@@ -1769,6 +1779,14 @@ body.mobile-nav-open .mobile-backdrop{display:block}
     <div style="border-top:1px solid var(--g200);margin:16px 0 14px;padding-top:14px">
       <div style="font-size:11px;font-weight:700;color:var(--g400);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px">📊 Paramètres contrat</div>
       <div class="fg">
+        <label>📅 Date d'entrée dans l'entreprise</label>
+        <input type="date" id="nuDateEntree" max="2027-05-31" onchange="onEntryDateChange()">
+        <small style="color:var(--g400);font-size:11px;margin-top:3px;display:block">Le planning ne démarre qu'à partir de cette date. Laisser vide (ou saisir une date antérieure à juin 2026) pour un collaborateur déjà présent sur toute la période.</small>
+      </div>
+      <div id="nuProrataBox" style="display:none;background:#EEF2FF;border:1px solid #C7D2FE;border-radius:9px;padding:10px 12px;margin-bottom:14px">
+        <div id="nuProrataTxt" style="font-size:12px;color:#3730A3;line-height:1.6"></div>
+      </div>
+      <div class="fg">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
           <input type="checkbox" id="nuIsCadre" style="width:15px;height:15px;accent-color:#7C3AED" onchange="toggleCadreFields()">
           <span>👔 <strong>Cadre (forfait jours)</strong> — travaille en demi-journées</span>
@@ -1947,6 +1965,68 @@ const ABS_TYPES  = {
   'Formation':           {badge:'abs-for',  teamCell:'t-for',  label:'for'},
   'Autre':               {badge:'abs-aut',  teamCell:'t-aut',  label:'abs'}
 };
+
+// ═══════════════════════════════════════════════════════════════
+// DATE D'ENTRÉE DANS L'ENTREPRISE
+// Un collaborateur arrivé en cours de période n'a pas de planning
+// avant sa date d'entrée : les jours antérieurs sont à 0h et verrouillés.
+// ═══════════════════════════════════════════════════════════════
+const PERIOD_START_KEY = '2026-06-01';
+const PERIOD_END_KEY   = '2027-05-31';
+
+// Date d'entrée réellement contraignante pour la période en cours.
+// Renvoie '' si le collaborateur est présent depuis (au moins) le début
+// de la période — dans ce cas aucun jour n'est neutralisé.
+function entryRestrictionKey(user) {
+  const raw = user?.dateEntree;
+  if (!raw) return '';
+  const s = String(raw).slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return '';
+  if (s <= PERIOD_START_KEY) return '';
+  return s;
+}
+
+// true si la date (clé 'YYYY-MM-DD') précède l'entrée dans l'entreprise
+function isBeforeEntry(dateKey, entryKey) {
+  return !!entryKey && dateKey < entryKey;
+}
+
+// Nombre de jours calendaires entre deux clés, bornes incluses
+function daysInclusive(fromKey, toKey) {
+  const a = new Date(fromKey + 'T12:00:00');
+  const b = new Date(toKey   + 'T12:00:00');
+  return Math.round((b - a) / 86400000) + 1;
+}
+
+// Prorata temporis : part de la période réellement travaillée (0 → 1)
+function prorataRatio(entryKey) {
+  if (!entryKey) return 1;
+  if (entryKey > PERIOD_END_KEY) return 0;
+  return daysInclusive(entryKey, PERIOD_END_KEY) / daysInclusive(PERIOD_START_KEY, PERIOD_END_KEY);
+}
+
+// Heures arrondies à l'unité, forfait jours cadre au demi-jour près
+function roundTarget(v, isCadre) {
+  return isCadre ? Math.round(v * 2) / 2 : Math.round(v);
+}
+
+// Objectif contractuel annuel, tel que saisi dans la fiche du collaborateur
+function contractTarget(user) {
+  return user?.isCadre ? (user?.daysTarget || 218) : (user?.hoursTarget || HOURS_TARGET);
+}
+
+// Objectif RÉELLEMENT suivi sur la période : l'objectif contractuel,
+// proratisé si le collaborateur est entré en cours de période.
+function effectiveTarget(user) {
+  const full  = contractTarget(user);
+  const ratio = prorataRatio(entryRestrictionKey(user));
+  return ratio >= 1 ? full : roundTarget(full * ratio, !!user?.isCadre);
+}
+
+// true si l'objectif de ce collaborateur est proratisé (entrée en cours de période)
+function isProrated(user) {
+  return !!entryRestrictionKey(user);
+}
 
 // ═══════════════════════════════════════════════════════════════
 // STATE
@@ -2139,10 +2219,13 @@ function uid() { return currentUser?.username || currentUser?.id || ''; }
 // SCHEDULE DATA
 // ═══════════════════════════════════════════════════════════════
 async function createEmptySchedule(userId) {
+  const entry = entryRestrictionKey(currentUser);
   const days = {};
   for (let d=new Date(2026,5,1); d<=new Date(2027,4,31); d.setDate(d.getDate()+1)) {
     const k = fmtKey(d);
-    days[k] = { hours:0, type:'normal', note:'' };
+    days[k] = isBeforeEntry(k, entry)
+      ? { hours:0, type:'repos', note:'', beforeEntry:true }
+      : { hours:0, type:'normal', note:'' };
   }
   await db.collection('schedules').doc(userId).set({ userId, days });
   return days;
@@ -2514,6 +2597,7 @@ function getPT() {
 
 async function applyPlanningType() {
   const tp = getPT();
+  const entry = entryRestrictionKey(currentUser);
   for (let d=new Date(2026,5,1); d<=new Date(2027,4,31); d.setDate(d.getDate()+1)) {
     const k = fmtKey(d);
     const dow = d.getDay();
@@ -2521,6 +2605,11 @@ async function applyPlanningType() {
     if (existing && ABS_TYPES[existing.type]) continue; // don't overwrite absences
     // Respecter les jours fériés fermés : garder 0h bloqué
     if (existing?.holidayClosed) continue;
+    // Avant l'entrée dans l'entreprise : aucun temps de travail
+    if (isBeforeEntry(k, entry)) {
+      currentSchedule[k] = { hours:0, type:'repos', note: existing?.note||'', beforeEntry:true };
+      continue;
+    }
     const h = tp[DAYS_FR[dow]]||0;
     currentSchedule[k] = { hours:h, type: h===0?'repos':'normal', note: existing?.note||'' };
   }
@@ -2662,6 +2751,16 @@ function renderCalMonth(mIdx) {
   const banner = document.getElementById('lockedBanner');
   if (banner) banner.style.display = (isMonthAnyLocked(mIdx) && !isAdmin) ? 'flex' : 'none';
 
+  // Date d'entrée dans l'entreprise : les jours antérieurs sont hors contrat
+  const entryKey = entryRestrictionKey(currentUser);
+  const entryBanner = document.getElementById('entryBanner');
+  if (entryBanner) {
+    const firstK = fmtKey(new Date(m.year, m.month, 1));
+    entryBanner.style.display = (entryKey && firstK < entryKey) ? 'flex' : 'none';
+    if (entryKey) entryBanner.innerHTML =
+      `📅 Entrée dans l'entreprise le <strong>&nbsp;${fmtDisplay(entryKey)}&nbsp;</strong> — les jours antérieurs ne font pas partie de votre contrat et restent à 0h.`;
+  }
+
   // Barre d'action pour la saisie en masse
   const bulkBar =
       '<div id="bulkBar" style="display:none;background:linear-gradient(135deg,var(--navy),#3D5275);color:#fff;padding:10px 14px;border-radius:10px;margin-bottom:10px;align-items:center;gap:10px;flex-wrap:wrap">'
@@ -2704,13 +2803,17 @@ function renderCalMonth(mIdx) {
     const isHolClosed = !hol?.open && !!hol && !isAdmin;
     const isHolClosedEntry = !!data.holidayClosed && !isAdmin;
     const dayLk = isDateLocked(k, mIdx) && !isAdmin;
-    const locked = dayLk || isHolClosed || isHolClosedEntry;
+    // Jour antérieur à l'entrée dans l'entreprise : hors contrat, jamais saisissable
+    const preEntry = isBeforeEntry(k, entryKey);
+    const locked = dayLk || isHolClosed || isHolClosedEntry || preEntry;
     if (dayLk || isHolClosed) rowClass += ' locked-row';
+    if (preEntry) rowClass += ' before-entry-row';
     const ordinal = day === 1 ? '1er' : String(day);
     const MFL = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
     const dayFull = DAYS_FR[dow].charAt(0).toUpperCase()+DAYS_FR[dow].slice(1)+' '+ordinal+' '+MFL[m.month];
     const holSpan = hol ? ' <span style="font-size:10px;font-weight:700;color:'+(hol.open?'var(--holiday-open-text)':'var(--holiday-closed-text)')+'">'+hol.name+' '+(hol.open?'(ouvert)':'(fermé)')+'</span>' : '';
     const sunSpan = sunOpen ? ' <span style="font-size:10px;font-weight:700;color:#C4B5FD">☀️ '+(openSundays[k].note||'Ouvert')+'</span>' : '';
+    const entrySpan = preEntry ? ' <span class="entry-tag">avant entrée</span>' : '';
     const weekNum = getISOWeek(date);
     const modCls = isMod ? ' modified-cell' : '';
     const modTip = isMod ? ' title="Modifié: '+(data.modifComment||'').replace(/"/g,'&quot;')+'"' : '';
@@ -2722,7 +2825,7 @@ function renderCalMonth(mIdx) {
     html += '<td class="'+cellClass+'" style="text-align:center">'
          + (canBulk ? '<input type="checkbox" class="bulk-chk" data-k="'+k+'" data-idx="'+day+'" onclick="bulkToggle(this, event)"'+checked+'>' : '<span style="opacity:.25">—</span>')
          + '</td>';
-    html += '<td class="dn '+cellClass+'" style="white-space:nowrap;font-size:12px">'+dayFull+holSpan+sunSpan+'</td>';
+    html += '<td class="dn '+cellClass+'" style="white-space:nowrap;font-size:12px">'+dayFull+holSpan+sunSpan+entrySpan+'</td>';
     html += '<td class="'+cellClass+'" style="text-align:center;font-size:11px;font-weight:700;color:var(--g400)">S'+weekNum+'</td>';
     html += '<td class="'+cellClass+'">';
     if (isAbs) {
@@ -2737,10 +2840,12 @@ function renderCalMonth(mIdx) {
   }
 
   var mTotal = calcMonthTotal(m), yTotal = calcYearTotal();
-  var diff = yTotal - HOURS_TARGET, isOver = yTotal > HOURS_TARGET;
+  var calTarget = effectiveTarget(currentUser);
+  var diff = yTotal - calTarget, isOver = yTotal > calTarget;
+  var prorataNote = isProrated(currentUser) ? ' <span style="font-size:10px;font-weight:600;opacity:.85">(proratisé)</span>' : '';
   html += '</tbody><tfoot><tr class="total-row"><td style="text-align:left" colspan="3">Total '+m.name+'</td><td><strong>'+fmt(mTotal)+'h</strong></td><td>'+(isMonthAnyLocked(mIdx)?'🔒 Mois verrouillé':'')+'</td></tr>';
-  if (isOver) html += '<tr class="recup-row"><td style="text-align:left" colspan="3">✅ Récupération disponible</td><td><strong>'+fmt(yTotal)+'h / '+HOURS_TARGET+'h</strong></td><td>🎉 <strong>+'+fmt(diff)+'h</strong></td></tr>';
-  else html += '<tr class="restant-row"><td style="text-align:left" colspan="3">Total / Restant</td><td><strong>'+fmt(yTotal)+'h</strong></td><td>Restant : <strong>'+fmt(Math.max(0,HOURS_TARGET-yTotal))+'h</strong></td></tr>';
+  if (isOver) html += '<tr class="recup-row"><td style="text-align:left" colspan="3">✅ Récupération disponible</td><td><strong>'+fmt(yTotal)+'h / '+fmt(calTarget)+'h'+prorataNote+'</strong></td><td>🎉 <strong>+'+fmt(diff)+'h</strong></td></tr>';
+  else html += '<tr class="restant-row"><td style="text-align:left" colspan="3">Total / Restant</td><td><strong>'+fmt(yTotal)+'h</strong></td><td>Restant : <strong>'+fmt(Math.max(0,calTarget-yTotal))+'h</strong>'+prorataNote+'</td></tr>';
   html += '</tfoot></table>';
   document.getElementById('calContent').innerHTML = html;
   updateStats();
@@ -2890,7 +2995,8 @@ function calcCpStats() {
 
 function updateStats() {
   const isCadre = !!currentUser?.isCadre;
-  const userTarget = isCadre ? (currentUser?.daysTarget || 218) : (currentUser?.hoursTarget || HOURS_TARGET);
+  // Objectif proratisé si le collaborateur est entré en cours de période
+  const userTarget = effectiveTarget(currentUser);
   const doneRaw = calcYearTotal(); // always in hours/half-days
   const done = isCadre ? doneRaw / 2 : doneRaw; // cadre: 2 demi-j = 1 jour
   const diff   = done - userTarget;
@@ -2908,10 +3014,14 @@ function updateStats() {
   else document.getElementById('progFill').classList.remove('over');
 
   // Subtitle for objective
+  const entryKey = entryRestrictionKey(currentUser);
+  const prorataSub = entryKey
+    ? ` · proratisé depuis votre entrée le <strong>${fmtDisplay(entryKey)}</strong> (objectif contractuel : ${fmt(contractTarget(currentUser))}${isCadre?' jours':' h'})`
+    : '';
   const objSub = document.querySelector('#page-annualization .ph p');
-  if (objSub) objSub.innerHTML = isCadre
+  if (objSub) objSub.innerHTML = (isCadre
     ? `Année 2026–2027 · Objectif : <strong>${userTarget} jours</strong> (cadre forfait jours)`
-    : `Année 2026–2027 · Objectif : <strong>${fmt(userTarget)} heures</strong>`;
+    : `Année 2026–2027 · Objectif : <strong>${fmt(userTarget)} heures</strong>`) + prorataSub;
 
   // CP stat
   const cpAlloc    = currentUser?.cpDays || 25;
@@ -3010,6 +3120,7 @@ async function renderTeamPlanning(mIdx) {
   let rows='';
   for (const u of employees) {
     const usch=schedules[u.username]||{};
+    const uEntry=entryRestrictionKey(u);
     let cells='';
     let monthTotal = 0;
 
@@ -3021,7 +3132,11 @@ async function renderTeamPlanning(mIdx) {
         const data=usch[k]||{hours:0,type:'normal'};
         const absInfo=ABS_TYPES[data.type];
         let cls='',content='',cTip='';
-        if (dow===0){ cls='t-sun'; content=''; }
+        if (isBeforeEntry(k,uEntry)){
+          cls='t-preentry'; content='·';
+          cTip=' title="Avant l\'entrée dans l\'entreprise ('+fmtDisplay(uEntry)+')"';
+        }
+        else if (dow===0){ cls='t-sun'; content=''; }
         else if (absInfo){ cls=absInfo.teamCell; content=absInfo.label; }
         else {
           cls=dow===6?'t-sat':'';
@@ -3128,6 +3243,9 @@ async function submitAbsence() {
   if (dateStart>dateEnd) { toast('La date de fin doit être après la date de début.','error'); return; }
   if (!quantity||quantity<=0) { toast('Indiquez une quantité valide.','error'); return; }
   if (new Date(dateStart)<new Date(2026,5,1)||new Date(dateEnd)>new Date(2027,4,31)) { toast('Dates hors période (Juin 2026 – Mai 2027).','error'); return; }
+  // Pas de demande d'absence avant l'entrée dans l'entreprise
+  const myEntry = entryRestrictionKey(currentUser);
+  if (isBeforeEntry(dateStart, myEntry)) { toast(`Vous êtes entré dans l'entreprise le ${fmtDisplay(myEntry)} : aucune absence ne peut être posée avant cette date.`,'error'); return; }
 
   // Vérifier les chevauchements avec des demandes existantes (pending, approved, waiting)
   const conflictCheck = await db.collection('absenceRequests')
@@ -3915,7 +4033,12 @@ async function loadUserList() {
   }
   container.innerHTML=employees.map(u=>{
     const cadre = u.isCadre;
-    const targetLabel = cadre ? `${u.daysTarget||218}j/an (cadre)` : `${u.hoursTarget||1607}h/an`;
+    const unit = cadre ? 'j' : 'h';
+    const targetLabel = isProrated(u)
+      ? `${fmt(effectiveTarget(u))}${unit} proratisé${cadre?' (cadre)':''}`
+      : (cadre ? `${u.daysTarget||218}j/an (cadre)` : `${u.hoursTarget||1607}h/an`);
+    const entryLabel = u.dateEntree
+      ? `<div>📅 Entré le ${fmtDisplay(String(u.dateEntree).slice(0,10))}</div>` : '';
     const cadreBadge = cadre ? '<span style="background:#EDE9FE;color:#5B21B6;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;margin-left:6px">👔 CADRE</span>' : '';
     return `<div class="user-card">
       <div class="uc-avatar">${u.name.charAt(0).toUpperCase()}</div>
@@ -3927,6 +4050,7 @@ async function loadUserList() {
       <div class="uc-info" style="margin-left:auto;text-align:right;font-size:11.5px;color:var(--g400)">
         <div>${targetLabel}</div>
         ${u.cpDays?`<div>CP: ${u.cpDays}j${u.cpAnciennete?` + ${u.cpAnciennete}j anc.`:''}</div>`:''}
+        ${entryLabel}
       </div>
       <div class="uc-actions">
         <button class="btn btn-navy btn-sm" onclick="openEditUser('${u.username}')">✏️ Éditer</button>
@@ -3940,6 +4064,33 @@ async function loadUserList() {
 let userModalMode = 'create';
 let editingUsername = null;
 
+// ─── Date d'entrée : aperçu de l'objectif proratisé ────────────
+// L'objectif saisi reste l'objectif CONTRACTUEL annuel (1607h ou le forfait
+// jours). Pour une entrée en cours de période, l'objectif réellement suivi
+// est calculé au prorata temporis par effectiveTarget() ; cet encart montre
+// simplement à l'admin ce que ça donne avant d'enregistrer.
+function refreshProrataHint() {
+  const box = document.getElementById('nuProrataBox');
+  if (!box) return;
+  const entry = entryRestrictionKey({ dateEntree: document.getElementById('nuDateEntree')?.value });
+  if (!entry) { box.style.display = 'none'; return; }
+  const isCadre = document.getElementById('nuIsCadre').checked;
+  const full = isCadre
+    ? (parseInt(document.getElementById('nuDaysTarget').value)  || 218)
+    : (parseInt(document.getElementById('nuHoursTarget').value) || HOURS_TARGET);
+  const ratio = prorataRatio(entry);
+  const value = roundTarget(full * ratio, isCadre);
+  const unit  = isCadre ? 'jours' : 'h';
+  document.getElementById('nuProrataTxt').innerHTML =
+      `Le planning démarrera le <strong>${fmtDisplay(entry)}</strong> : les jours du `
+    + `${fmtDisplay(PERIOD_START_KEY)} au ${fmtDisplay(entry)} resteront à 0h et non modifiables.<br>`
+    + `Présence sur <strong>${Math.round(ratio*100)}%</strong> de la période → objectif suivi `
+    + `<strong>${fmt(value)} ${unit}</strong> (proratisé automatiquement à partir des ${fmt(full)} ${unit} contractuels).`;
+  box.style.display = '';
+}
+
+function onEntryDateChange() { refreshProrataHint(); }
+
 function openCreateUser() {
   userModalMode = 'create';
   editingUsername = null;
@@ -3950,9 +4101,11 @@ function openCreateUser() {
   document.getElementById('nuCpDays').value='25';
   document.getElementById('nuCpAnciennete').value='0';
   document.getElementById('nuMatricule').value='';
+  document.getElementById('nuDateEntree').value='';
   document.getElementById('nuIsCadre').checked=false;
   document.getElementById('nuFieldsCadre').style.display='none';
   document.getElementById('nuFieldsNonCadre').style.display='';
+  refreshProrataHint();
   ['nuPtLundi','nuPtMardi','nuPtMercredi','nuPtJeudi','nuPtVendredi'].forEach(id=>document.getElementById(id).value='7');
   ['nuPtSamedi','nuPtDimanche'].forEach(id=>document.getElementById(id).value='0');
   document.getElementById('modalUserTitle').textContent='Nouveau Collaborateur';
@@ -3980,11 +4133,13 @@ function openEditUser(username) {
   document.getElementById('nuCpDays').value = u.cpDays||25;
   document.getElementById('nuCpAnciennete').value = u.cpAnciennete||0;
   document.getElementById('nuMatricule').value = u.matricule||'';
+  document.getElementById('nuDateEntree').value = (u.dateEntree||'').slice(0,10);
   // Cadre
   const cadre = !!u.isCadre;
   document.getElementById('nuIsCadre').checked = cadre;
   document.getElementById('nuFieldsCadre').style.display = cadre?'':'none';
   document.getElementById('nuFieldsNonCadre').style.display = cadre?'none':'';
+  refreshProrataHint();
   // Planning type
   const tp = u.typePlanning || {lundi:7,mardi:7,mercredi:7,jeudi:7,vendredi:7,samedi:0,dimanche:0};
   document.getElementById('nuPtLundi').value    = tp.lundi    ?? 7;
@@ -4022,7 +4177,9 @@ async function createUser() {
   const cpDays=parseFloat(document.getElementById('nuCpDays').value)||25;
   const cpAnciennete=parseFloat(document.getElementById('nuCpAnciennete').value)||0;
   const matricule=document.getElementById('nuMatricule').value.trim();
+  const dateEntree=document.getElementById('nuDateEntree').value||'';
   if (!name||!username||!password) { toast('Nom, identifiant et mot de passe sont obligatoires.','error'); return; }
+  if (dateEntree && dateEntree > PERIOD_END_KEY) { toast(`La date d'entrée dépasse la fin de la période (${fmtDisplay(PERIOD_END_KEY)}).`,'error'); return; }
   try {
     const existing=await db.collection('users').doc(username).get();
     if (existing.exists) { toast('Cet identifiant est déjà utilisé.','error'); return; }
@@ -4038,11 +4195,11 @@ async function createUser() {
     await db.collection('users').doc(username).set({
       id:username,name,username,password,email,role,hoursTarget,cpDays,cpAnciennete,
       isCadre, daysTarget,
-      matricule, typePlanning:defaultTP,
+      matricule, dateEntree, typePlanning:defaultTP,
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
-    logAudit('create_user', `Profil créé : ${name} (@${username}${isCadre?' — Cadre':''}${matricule?' — '+matricule:''})`);
-    await applyTypePlanningToSchedule(username, defaultTP);
+    logAudit('create_user', `Profil créé : ${name} (@${username}${isCadre?' — Cadre':''}${matricule?' — '+matricule:''}${dateEntree?' — entrée le '+fmtDisplay(dateEntree):''})`);
+    await applyTypePlanningToSchedule(username, defaultTP, dateEntree);
     closeModal('modalCreateUser');
     toast(`Profil de ${name} créé !`,'success');
     await loadUserList(); await loadAllUsers();
@@ -4061,7 +4218,9 @@ async function updateUser() {
   const cpDays=parseFloat(document.getElementById('nuCpDays').value)||25;
   const cpAnciennete=parseFloat(document.getElementById('nuCpAnciennete').value)||0;
   const matricule=document.getElementById('nuMatricule').value.trim();
+  const dateEntree=document.getElementById('nuDateEntree').value||'';
   if (!name) { toast('Le nom est obligatoire.','error'); return; }
+  if (dateEntree && dateEntree > PERIOD_END_KEY) { toast(`La date d'entrée dépasse la fin de la période (${fmtDisplay(PERIOD_END_KEY)}).`,'error'); return; }
   try {
     const newTP = {
       lundi:    parseFloat(document.getElementById('nuPtLundi')?.value)||0,
@@ -4073,14 +4232,16 @@ async function updateUser() {
       dimanche: parseFloat(document.getElementById('nuPtDimanche')?.value)||0,
     };
     const updates = {name, email, role, hoursTarget, cpDays, cpAnciennete, matricule,
-      isCadre, daysTarget,
+      isCadre, daysTarget, dateEntree,
       typePlanning: newTP,
       updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
     if (newPassword) updates.password = newPassword;
     await db.collection('users').doc(editingUsername).update(updates);
 
     // Appliquer le nouveau typePlanning au schedule annuel
-    await applyTypePlanningToSchedule(editingUsername, newTP);
+    // (la date d'entrée est réappliquée : les jours antérieurs repassent à 0h,
+    //  et les jours redevenus « dans le contrat » reprennent le planning type)
+    await applyTypePlanningToSchedule(editingUsername, newTP, dateEntree);
 
     // Si c'est le collaborateur connecté, recharger son schedule et mettre à jour les stats
     if (currentUser?.username===editingUsername) {
@@ -4143,7 +4304,7 @@ async function renderTeamStats() {
         default: if (!ABSENCE_TYPES_EXCL.has(d.type)) heuresTravaillees+=h;
       }
     });
-    const target = u.hoursTarget || HOURS_TARGET;
+    const target = effectiveTarget(u);
     const recupDispo = Math.max(0, heuresTravaillees - target);
     return { u, joursMaladie, joursCP, joursAnc, joursRecup, joursFam, joursFormation, joursAutre,
              heuresTravaillees: fmt(heuresTravaillees), heuresMaladie: fmt(heuresMaladie),
@@ -4392,7 +4553,7 @@ function refreshAbsenceInfoCards() {
   const cpRestants    = Math.max(0, cpAlloc - cp.days);
   const cpAncRestants = Math.max(0, cpAncAlloc - cp.daysAnc);
   const total = calcYearTotal();
-  const recup = Math.max(0, total - (currentUser?.hoursTarget || HOURS_TARGET));
+  const recup = Math.max(0, total - effectiveTarget(currentUser));
 
   // CP
   const elCpR = document.getElementById('absCpRestants');
@@ -4494,7 +4655,7 @@ async function loadAdminEditPlanning() {
 
   try {
     const doc = await db.collection('schedules').doc(userId).get();
-    adminEditSchedule = doc.exists ? (doc.data().days || {}) : await createEmptyScheduleFor(userId);
+    adminEditSchedule = doc.exists ? (doc.data().days || {}) : await createEmptyScheduleFor(userId, user.dateEntree);
   } catch(e) {
     toast('Erreur lors du chargement du planning.', 'error');
     console.error(e); return;
@@ -4516,17 +4677,23 @@ async function loadAdminEditPlanning() {
 
 // Applique un typePlanning sur le schedule annuel complet d'un collaborateur
 // (ne touche pas aux absences approuvées ni aux jours fériés fermés)
-async function applyTypePlanningToSchedule(userId, tp) {
+async function applyTypePlanningToSchedule(userId, tp, dateEntree) {
   try {
     const doc = await db.collection('schedules').doc(userId).get();
     const days = doc.exists ? (doc.data().days || {}) : {};
     const DAYS_KEY = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+    const entry = entryRestrictionKey({ dateEntree });
     for (let d=new Date(2026,5,1); d<=new Date(2027,4,31); d.setDate(d.getDate()+1)) {
       const k = fmtKey(d);
       const existing = days[k];
       // Garder les absences approuvées et les fériés fermés
       if (existing?.absenceId) continue;
       if (existing?.holidayClosed) continue;
+      // Avant l'entrée dans l'entreprise : aucun temps de travail
+      if (isBeforeEntry(k, entry)) {
+        days[k] = { hours: 0, type: 'repos', note: existing?.note||'', beforeEntry: true };
+        continue;
+      }
       const dayKey = DAYS_KEY[d.getDay()];
       const h = parseFloat(tp[dayKey]) || 0;
       days[k] = { hours: h, type: h===0?'repos':'normal', note: existing?.note||'' };
@@ -4536,11 +4703,14 @@ async function applyTypePlanningToSchedule(userId, tp) {
   } catch(e) { console.error('applyTypePlanningToSchedule:', e); return {}; }
 }
 
-async function createEmptyScheduleFor(userId) {
+async function createEmptyScheduleFor(userId, dateEntree) {
+  const entry = entryRestrictionKey({ dateEntree });
   const days = {};
   for (let d=new Date(2026,5,1); d<=new Date(2027,4,31); d.setDate(d.getDate()+1)) {
     const k = fmtKey(d);
-    days[k] = { hours:0, type:'normal', note:'' };
+    days[k] = isBeforeEntry(k, entry)
+      ? { hours:0, type:'repos', note:'', beforeEntry:true }
+      : { hours:0, type:'normal', note:'' };
   }
   await db.collection('schedules').doc(userId).set({ userId, days });
   return days;
@@ -4549,8 +4719,9 @@ async function createEmptyScheduleFor(userId) {
 function updateAdminEditStats() {
   const total  = Object.values(adminEditSchedule).reduce((s,d)=>
     s + (ABSENCE_TYPES_EXCL.has(d?.type) ? 0 : (parseFloat(d.hours)||0)), 0);
-  const diff   = total - HOURS_TARGET;
-  const isOver = total > HOURS_TARGET;
+  const target = effectiveTarget(allUsers.find(u => u.username === adminEditUserId));
+  const diff   = total - target;
+  const isOver = total > target;
   let cpDays=0;
   Object.values(adminEditSchedule).forEach(d=>{if(d.type==='CP')cpDays++;});
 
@@ -4567,13 +4738,15 @@ function updateAdminEditStats() {
   } else {
     remStat.className  = 'stat orange';
     remLabel.textContent = 'Restant à faire';
-    remVal.textContent   = fmt(HOURS_TARGET - total) + 'h';
+    remVal.textContent   = fmt(target - total) + 'h';
   }
 }
 
 function renderAdminEditCal() {
   const m = MONTHS[adminEditMonthIdx];
   const daysInMonth = new Date(m.year, m.month+1, 0).getDate();
+  const adminEditUser = allUsers.find(u => u.username === adminEditUserId);
+  const entryKey = entryRestrictionKey(adminEditUser);
 
   let html = `<table class="cal-table">
     <thead><tr>
@@ -4596,11 +4769,17 @@ function renderAdminEditCal() {
     const hol = holidays[k];
     const isCpRow = data.type === 'CP';
 
+    // Jour antérieur à l'entrée dans l'entreprise : hors contrat, non saisissable
+    const preEntry = isBeforeEntry(k, entryKey);
+
     let rowClass = '';
     if (hol) rowClass = hol.open ? 'holiday-open-row' : 'holiday-closed-row';
+    if (preEntry) rowClass += ' before-entry-row locked-row';
     const cellClass = isSun ? 'sunday-cell' : (isSat ? 'saturday-cell' : '');
 
-    const dayLabel = DAYS_FR[dow] + (hol ? ` <span style="font-size:10px;font-weight:700">${hol.name}</span>` : '');
+    const dayLabel = DAYS_FR[dow]
+      + (hol ? ` <span style="font-size:10px;font-weight:700">${hol.name}</span>` : '')
+      + (preEntry ? ' <span class="entry-tag">avant entrée</span>' : '');
 
     html += `<tr class="${rowClass}">
       <td class="dn ${cellClass}">${dayLabel}</td>
@@ -4611,6 +4790,7 @@ function renderAdminEditCal() {
           : `<input type="text" class="h-input ${isCpRow?'cp-typed':''}"
                value="${data.type==='CP'?'CP':(data.hours||'')}"
                placeholder="0 ou cp"
+               ${preEntry?'readonly':''}
                oninput="adminHInput(this)"
                onblur="adminHBlur('${k}', this)"
                onkeydown="handleHKey('${k}', this, event, true)"/>`
@@ -4619,7 +4799,9 @@ function renderAdminEditCal() {
       <td class="${cellClass}">
         ${isAbsFromReq
           ? `<span class="abs-badge ${absInfo.badge}">${data.type}</span>`
-          : isSun
+          : preEntry
+            ? '<span style="color:var(--g400);font-size:11px">Hors contrat</span>'
+            : isSun
             ? '<span style="color:#7a8bbf;font-size:11px">Dimanche</span>'
             : `<select class="type-sel" onchange="adminUpdateT('${k}',this.value)">
                 <option value="normal"  ${data.type==='normal'?'selected':''}>Normal</option>
@@ -4635,6 +4817,7 @@ function renderAdminEditCal() {
       <td class="${cellClass}">
         <input type="text" class="note-input" placeholder="Note…"
           value="${(data.note||'').replace(/"/g,'&quot;')}"
+          ${preEntry?'readonly':''}
           onchange="adminUpdateN('${k}',this.value)"/>
       </td>
     </tr>`;
@@ -4651,8 +4834,10 @@ function renderAdminEditCal() {
   })();
   const yTotal = Object.values(adminEditSchedule).reduce((s,d)=>
     s + (ABSENCE_TYPES_EXCL.has(d?.type) ? 0 : (parseFloat(d.hours)||0)), 0);
-  const isOver = yTotal > HOURS_TARGET;
-  const diff   = yTotal - HOURS_TARGET;
+  const calTarget = effectiveTarget(adminEditUser);
+  const isOver = yTotal > calTarget;
+  const diff   = yTotal - calTarget;
+  const prorataNote = isProrated(adminEditUser) ? ' <span style="font-size:10px;font-weight:600;opacity:.85">(proratisé)</span>' : '';
 
   html += `</tbody><tfoot>
     <tr class="total-row">
@@ -4661,11 +4846,11 @@ function renderAdminEditCal() {
     </tr>
     ${isOver
       ? `<tr class="recup-row"><td style="text-align:left" colspan="2">✅ Récupération disponible</td>
-         <td><strong>${fmt(yTotal)}h / ${HOURS_TARGET}h</strong></td>
+         <td><strong>${fmt(yTotal)}h / ${fmt(calTarget)}h</strong>${prorataNote}</td>
          <td colspan="2">🎉 <strong>+${fmt(diff)}h</strong></td></tr>`
       : `<tr class="restant-row"><td style="text-align:left" colspan="2">Restant à faire</td>
          <td><strong>${fmt(yTotal)}h</strong></td>
-         <td colspan="2">Restant : <strong>${fmt(HOURS_TARGET-yTotal)}h</strong></td></tr>`
+         <td colspan="2">Restant : <strong>${fmt(calTarget-yTotal)}h</strong>${prorataNote}</td></tr>`
     }
   </tfoot></table>`;
 
@@ -4867,7 +5052,7 @@ const INFO_1607_FAQ = [
 function renderInfo1607() {
   // Bloc personnalisé
   const isCadre = !!currentUser?.isCadre;
-  const target = isCadre ? (currentUser?.daysTarget || 218) : (currentUser?.hoursTarget || HOURS_TARGET);
+  const target = effectiveTarget(currentUser);
   const doneRaw = (typeof calcYearTotal==='function') ? calcYearTotal() : 0;
   const done = isCadre ? doneRaw/2 : doneRaw;
   const remaining = Math.max(0, target - done);
@@ -5166,10 +5351,24 @@ function toggleSynthese() {
 function renderSynthese() {
   const grid = document.getElementById('synthGrid');
   if (!grid || currentUser?.role === 'admin') return;
-  const target = currentUser?.hoursTarget || HOURS_TARGET;
-  const monthTarget = Math.round((target / 12) * 10) / 10;
+  // Objectif proratisé si entrée en cours de période, réparti sur les mois
+  // effectivement couverts par le contrat
+  const entryKey = entryRestrictionKey(currentUser);
+  const target = effectiveTarget(currentUser);
+  const coveredMonths = MONTHS.filter(m =>
+    fmtKey(new Date(m.year, m.month+1, 0)) >= (entryKey || PERIOD_START_KEY)).length || 12;
+  const monthTarget = Math.round((target / coveredMonths) * 10) / 10;
   grid.innerHTML = MONTHS.map(m => {
+    // Mois entièrement antérieur à l'entrée : hors contrat, pas d'écart à afficher
+    const outOfContract = !!entryKey && fmtKey(new Date(m.year, m.month+1, 0)) < entryKey;
     const total = calcMonthTotal(m);
+    if (outOfContract) {
+      return `<div class="synth-cell">
+        <div class="sc-month">${m.name}</div>
+        <div class="sc-hours" style="color:var(--g400)">—</div>
+        <div class="sc-diff" style="color:var(--g400);font-size:10px">hors contrat</div>
+      </div>`;
+    }
     const diff  = Math.round((total - monthTarget) * 10) / 10;
     const cls   = total === 0 ? '' : diff >= 0 ? 'over' : 'under';
     const diffStr = diff >= 0 ? `+${diff}h` : `${diff}h`;
@@ -6314,7 +6513,7 @@ async function renderAnnualOverview() {
   for (const u of employees) {
     const days = schedules[u.username] || {};
     const isCadre = !!u.isCadre;
-    const target = isCadre ? (u.daysTarget||218) : (u.hoursTarget||HOURS_TARGET);
+    const target = effectiveTarget(u);
     let totalWorked = 0, totalDaysWorked = 0;
     let joursCP=0, joursAnc=0, joursRecup=0, joursMaladie=0, joursFam=0, joursFormation=0;
     let heuresMaladie=0, heuresFormation=0;
@@ -6418,12 +6617,16 @@ function _periodBoundaries() {
   const end   = new Date(lastM.year, lastM.month+1, 0); // dernier jour
   return { start, end };
 }
-function _periodProgressPct() {
+// Avancement dans la période. Pour un collaborateur entré en cours d'année,
+// la courbe démarre à sa date d'entrée (sinon il apparaîtrait « en retard »
+// sur des mois où il n'était pas encore dans l'entreprise).
+function _periodProgressPct(entryKey) {
   const { start, end } = _periodBoundaries();
+  const from = entryKey ? new Date(entryKey + 'T00:00:00') : start;
   const now = new Date();
-  if (now <= start) return 0;
-  if (now >= end)   return 100;
-  return Math.round(((now-start)/(end-start))*100);
+  if (now <= from) return 0;
+  if (now >= end)  return 100;
+  return Math.round(((now-from)/(end-from))*100);
 }
 function _daysUntilEnd() {
   const { end } = _periodBoundaries();
@@ -6444,7 +6647,7 @@ async function loadAdminAlerts() {
 
 function _computeStats(u, days) {
   const isCadre = !!u.isCadre;
-  const target  = isCadre ? (u.daysTarget||218) : (u.hoursTarget||HOURS_TARGET);
+  const target  = effectiveTarget(u);
   let totalWorked=0, totalDaysWorked=0;
   let joursCP=0, joursAnc=0, joursRecup=0, joursMaladie=0, joursFam=0, joursFormation=0;
 
@@ -6467,7 +6670,7 @@ function _computeStats(u, days) {
 
   const real = isCadre ? totalDaysWorked : totalWorked;
   const unit = isCadre ? 'j' : 'h';
-  const periodPct = _periodProgressPct();
+  const periodPct = _periodProgressPct(entryRestrictionKey(u));
   const expected = Math.round(target * periodPct/100 * 10)/10;
   const ecart    = Math.round((real - expected) * 10)/10;
   const pctTarget = target>0 ? Math.round((real/target)*100) : 0;
@@ -6972,6 +7175,7 @@ function toggleCadreFields() {
   const checked = document.getElementById('nuIsCadre').checked;
   document.getElementById('nuFieldsCadre').style.display = checked ? '' : 'none';
   document.getElementById('nuFieldsNonCadre').style.display = checked ? 'none' : '';
+  refreshProrataHint();
 }
 
 // ═══════════════════════════════════════════════════════════════

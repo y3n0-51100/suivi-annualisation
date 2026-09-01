@@ -370,7 +370,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .status-badge{padding:3px 11px;border-radius:20px;font-size:11.5px;font-weight:700;flex-shrink:0}
 .s-pending{background:#FEF3C7;color:#D97706}.s-approved{background:#D1FAE5;color:#059669}
 .s-rejected{background:#FEE2E2;color:#DC2626}.s-waiting{background:#EDE9FE;color:#7C3AED}
-.s-cancelled{background:#F3F4F6;color:#6B7280}
+.s-cancelled{background:#F3F4F6;color:#6B7280}.s-cancel_pending{background:#FEE2E2;color:#DC2626;border:1px solid #FCA5A5}
 /* Acompte */
 .sig-canvas{border:2px solid var(--g300);border-radius:10px;cursor:crosshair;touch-action:none;background:#fff;display:block;width:100%}
 .sig-tabs{display:flex;gap:8px;margin-bottom:10px}
@@ -1263,6 +1263,7 @@ body.mobile-nav-open .mobile-backdrop{display:block}
           <div style="display:flex;gap:7px;flex-wrap:wrap" id="mgrReqTabs">
             <div class="ftab active" onclick="filterReqs('all',this)">Toutes <span class="ftab-count" id="cnt-all"></span></div>
             <div class="ftab" onclick="filterReqs('pending',this)">En attente <span class="ftab-count" id="cnt-pending"></span></div>
+            <div class="ftab" onclick="filterReqs('cancel_pending',this)" style="color:#DC2626;font-weight:700">⚠️ Annulation demandée <span class="ftab-count" id="cnt-cancel_pending"></span></div>
             <div class="ftab" onclick="filterReqs('approved',this)">Approuvées <span class="ftab-count" id="cnt-approved"></span></div>
             <div class="ftab" onclick="filterReqs('waiting',this)">En cours <span class="ftab-count" id="cnt-waiting"></span></div>
             <div class="ftab" onclick="filterReqs('rejected',this)">Refusées <span class="ftab-count" id="cnt-rejected"></span></div>
@@ -1898,6 +1899,29 @@ body.mobile-nav-open .mobile-backdrop{display:block}
     <div style="display:flex;justify-content:flex-end;gap:10px">
       <button class="btn btn-secondary" onclick="closeModal('modalDeleteUser')">Annuler</button>
       <button class="btn btn-err" onclick="confirmDeleteUser()">🗑 Supprimer définitivement</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Demande d'annulation d'absence -->
+<div class="modal-overlay" id="modalCancelAbsence">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-head">
+      <span class="modal-title">🔄 Demande d'annulation d'absence</span>
+      <button class="modal-x" onclick="closeModal('modalCancelAbsence')">✕</button>
+    </div>
+    <div id="cancelAbsenceDetails" style="background:var(--g100);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px;border-left:3px solid var(--orange)">
+    </div>
+    <div class="fg" style="margin-bottom:14px">
+      <label>Motif de l'annulation (optionnel)</label>
+      <textarea id="cancelAbsenceReason" rows="3" placeholder="Précisez la raison de votre demande d'annulation…" style="width:100%;padding:10px;border:1.5px solid var(--g300);border-radius:9px;font-size:13px;font-family:'DM Sans',sans-serif;resize:vertical"></textarea>
+    </div>
+    <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:9px;padding:10px 12px;margin-bottom:16px;font-size:12px;color:#1E40AF;line-height:1.5">
+      ℹ️ <strong>Fonctionnement :</strong> Un email automatique sera envoyé au responsable (<strong>remi.schaffhauser@but.fr</strong>). Dès que la demande d'annulation est acceptée par l'administration, votre planning sera automatiquement rétabli avec vos horaires prévus à l'origine sur les journées concernées.
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px">
+      <button class="btn btn-secondary" onclick="closeModal('modalCancelAbsence')">Fermer</button>
+      <button class="btn btn-primary" id="btnSubmitCancelAbsence" onclick="submitCancelAbsence()">📨 Envoyer la demande d'annulation</button>
     </div>
   </div>
 </div>
@@ -3311,61 +3335,190 @@ async function sendRequestEmail(req) {
 
 async function loadMyRequests() {
   try {
-    const snap=await db.collection('absenceRequests').where('userId','==',uid()).get();
-    const reqs=snap.docs.map(d=>d.data()).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
-    const container=document.getElementById('myReqList');
-    if (!reqs.length) { container.innerHTML=`<div class="empty"><div class="ei">📭</div><h3>Aucune demande</h3><p>Allez dans "Demande d'absence" pour en soumettre une.</p></div>`; return; }
-    container.innerHTML=reqs.map(r=>`
-      <div class="req-card">
-        <div class="req-info">
-          <div class="req-emp">${r.type} — ${r.dateLabel||fmtDisplay(r.date)}</div>
-          <div class="req-detail">${r.qLabel||(r.hours+'h')}${r.comment?' · '+r.comment:''}</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-          <span class="status-badge s-${r.status}">${statusLabel(r.status)}</span>
-          ${r.status!=='cancelled'&&r.status!=='rejected'
-            ? `<button class="btn btn-sm" style="background:#F3F4F6;color:#6B7280;border:1px solid #D1D5DB"
-                onclick="confirmCancelRequest('${r.id}','${(r.type+' — '+(r.dateLabel||fmtDisplay(r.date))).replace(/'/g,'&#39;')}')"
-                title="Annuler cette demande">✕ Annuler</button>`
-            : ''}
-        </div>
-      </div>`).join('');
+    const snap = await db.collection('absenceRequests').where('userId','==',uid()).get();
+    const reqs = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+    const container = document.getElementById('myReqList');
+    if (!reqs.length) {
+      container.innerHTML = `<div class="empty"><div class="ei">📭</div><h3>Aucune demande</h3><p>Allez dans "Demande d'absence" pour en soumettre une.</p></div>`;
+      return;
+    }
+    container.innerHTML = reqs.map(r => {
+      let actionBtn = '';
+      let cancelNotice = '';
+
+      if (r.status === 'approved' || r.status === 'waiting') {
+        actionBtn = `<button class="btn btn-sm" style="background:#FFF1F2;color:#E11D48;border:1px solid #FDA4AF;font-weight:600;display:inline-flex;align-items:center;gap:4px"
+          onclick="openCancelAbsenceModal('${r.id}')"
+          title="Faire une demande d'annulation pour cette absence">
+          🔄 Demande d'annulation
+        </button>`;
+      } else if (r.status === 'cancel_pending') {
+        cancelNotice = `<div style="margin-top:6px;padding:6px 10px;border-radius:6px;background:#FEF2F2;border:1px solid #FECACA;font-size:11.5px;color:#991B1B">
+          ⏳ <strong>Demande d'annulation transmise :</strong> en attente de validation par votre responsable. Le planning d'origine sera rétabli dès acceptation.
+          ${r.cancelReason ? `<br><em style="color:#7F1D1D">Motif : ${escapeHtml(r.cancelReason)}</em>` : ''}
+        </div>`;
+      } else if (r.status === 'pending') {
+        actionBtn = `<button class="btn btn-sm" style="background:#F3F4F6;color:#6B7280;border:1px solid #D1D5DB"
+          onclick="confirmCancelPendingRequest('${r.id}','${(r.type+' — '+(r.dateLabel||fmtDisplay(r.date))).replace(/'/g,'&#39;')}')"
+          title="Annuler cette demande en attente">
+          ✕ Annuler
+        </button>`;
+      } else if (r.status === 'cancelled') {
+        cancelNotice = `<small style="color:var(--g500);font-size:11px;display:block;margin-top:2px">
+          ${r.cancelApproved ? '✓ Annulation acceptée — Planning d\'origine rétabli' : 'Demande annulée'}
+        </small>`;
+      }
+
+      return `
+        <div class="req-card" style="${r.status === 'cancel_pending' ? 'border-left:4px solid #EF4444;background:#FFFBFB' : ''}">
+          <div class="req-info">
+            <div class="req-emp">${r.type} — ${r.dateLabel||fmtDisplay(r.date)}</div>
+            <div class="req-detail">${r.qLabel||(r.hours+'h')}${r.comment?' · '+escapeHtml(r.comment):''}</div>
+            ${cancelNotice}
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+            <span class="status-badge s-${r.status}">${statusLabel(r.status)}</span>
+            ${actionBtn}
+          </div>
+        </div>`;
+    }).join('');
   } catch(e) { console.error(e); }
 }
 
-// ─── Annulation par le collaborateur ───
-function confirmCancelRequest(requestId, label) {
-  // Utiliser une confirm native simple
-  const ok = window.confirm(`Annuler la demande :\n"${label}" ?\n\nSi elle était approuvée, les jours seront remis à 0 sur votre planning.`);
-  if (ok) cancelRequest(requestId);
-}
+// ─── Modal et soumission de demande d'annulation par le collaborateur ───
+let pendingCancelRequestId = null;
 
-async function cancelRequest(requestId) {
+async function openCancelAbsenceModal(requestId) {
+  pendingCancelRequestId = requestId;
   try {
     const doc = await db.collection('absenceRequests').doc(requestId).get();
-    if (!doc.exists) { toast('Demande introuvable.','error'); return; }
-    const req = doc.data();
-
-    // Remettre les jours à 0 si la demande était approuvée
-    if (req.status === 'approved') {
-      await removeAbsFromSchedule(req);
-      // Recharger le planning si c'est le collaborateur connecté
-      if (req.userId === uid()) {
-        const snap = await db.collection('schedules').doc(uid()).get();
-        if (snap.exists) currentSchedule = snap.data().days || {};
-        renderCalMonth(currentCalMonth);
-        updateStats();
-      }
+    if (!doc.exists) { toast('Demande introuvable.', 'error'); return; }
+    const r = { id: doc.id, ...doc.data() };
+    const detailsEl = document.getElementById('cancelAbsenceDetails');
+    if (detailsEl) {
+      detailsEl.innerHTML = `
+        <div style="font-weight:700;font-size:14px;color:var(--navy);margin-bottom:4px">🏷 ${r.type}</div>
+        <div style="color:var(--g700);margin-bottom:2px">📅 <strong>Période :</strong> ${r.dateLabel || fmtDisplay(r.date)}</div>
+        <div style="color:var(--g700);margin-bottom:2px">⏱ <strong>Durée :</strong> ${r.qLabel || (r.hours + (r.type === 'CP' || r.type === 'CP Ancienneté' ? ' jour(s)' : 'h'))}</div>
+        <div style="color:var(--g500);font-size:12px">👤 <strong>Collaborateur :</strong> ${r.userName} (${r.userEmail})</div>
+      `;
     }
+    const reasonInput = document.getElementById('cancelAbsenceReason');
+    if (reasonInput) reasonInput.value = '';
+    openModal('modalCancelAbsence');
+  } catch(e) {
+    console.error(e);
+    toast('Erreur lors de l\'ouverture de la demande d\'annulation.', 'error');
+  }
+}
 
-    await db.collection('absenceRequests').doc(requestId).update({
-      status: 'cancelled',
-      cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
+async function submitCancelAbsence() {
+  if (!pendingCancelRequestId) return;
+  const reason = (document.getElementById('cancelAbsenceReason')?.value || '').trim();
+  const btn = document.getElementById('btnSubmitCancelAbsence');
+  if (btn) btn.disabled = true;
+  try {
+    const docRef = db.collection('absenceRequests').doc(pendingCancelRequestId);
+    const doc = await docRef.get();
+    if (!doc.exists) {
+      toast('Demande introuvable.', 'error');
+      if (btn) btn.disabled = false;
+      return;
+    }
+    const r = { id: doc.id, ...doc.data() };
+
+    await docRef.update({
+      status: 'cancel_pending',
+      previousStatus: r.status || 'approved',
+      cancelReason: reason,
+      cancelRequestedAt: firebase.firestore.FieldValue.serverTimestamp()
     });
 
-    toast('Demande annulée. Votre planning a été mis à jour.', 'success');
+    await sendCancelRequestEmail(r, reason);
+
+    closeModal('modalCancelAbsence');
+    toast('Demande d\'annulation envoyée ! Votre responsable a été notifié par email.', 'success');
+    logAudit('cancel_requested', `Demande d'annulation d'absence par ${r.userName} (${r.type} ${r.dateLabel || r.date})`);
+
     await loadMyRequests();
-  } catch(e) { toast("Erreur lors de l'annulation.",'error'); console.error(e); }
+    await checkNotifBadge();
+  } catch(e) {
+    toast('Erreur lors de l\'envoi de la demande d\'annulation.', 'error');
+    console.error(e);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function confirmCancelPendingRequest(requestId, label) {
+  const ok = window.confirm(`Annuler la demande en attente :\n"${label}" ?`);
+  if (ok) cancelPendingRequest(requestId);
+}
+
+async function cancelPendingRequest(requestId) {
+  try {
+    const doc = await db.collection('absenceRequests').doc(requestId).get();
+    if (!doc.exists) { toast('Demande introuvable.', 'error'); return; }
+    await db.collection('absenceRequests').doc(requestId).update({
+      status: 'cancelled',
+      cancelApproved: false,
+      cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    toast('Demande en attente annulée.', 'success');
+    await loadMyRequests();
+  } catch(e) { toast("Erreur lors de l'annulation.", 'error'); console.error(e); }
+}
+
+async function sendCancelRequestEmail(req, reason) {
+  const approveCancelUrl = `${APP_URL}/?action=approve_cancel&requestId=${req.id}`;
+  const rejectCancelUrl  = `${APP_URL}/?action=reject_cancel&requestId=${req.id}`;
+  try {
+    emailjs.send(EJS_SERVICE, EJS_TPL_REQ, {
+      to_email: MANAGER_EMAIL,
+      reply_to: req.userEmail,
+      subject: `Demande d'annulation d'absence — ${req.userName} — ${req.type}`,
+      employee_name: req.userName,
+      status_message:
+        `⚠️ DEMANDE D'ANNULATION D'ABSENCE\n\n` +
+        `Collaborateur : ${req.userName}\n` +
+        `Type : ${req.type}\n` +
+        `Période concernée : ${req.dateLabel || fmtDisplay(req.date)}\n` +
+        `Durée : ${req.qLabel || (req.hours + 'h')}\n` +
+        `Motif d'annulation : ${reason || 'Non précisé'}\n\n` +
+        `En acceptant cette demande, le planning du collaborateur sera automatiquement rétabli avec ses horaires prévus à l'origine sur les journées concernées.\n\n` +
+        `Connectez-vous pour traiter cette demande : ${APP_URL}`,
+      approve_url: approveCancelUrl,
+      reject_url: rejectCancelUrl,
+      waiting_url: `${APP_URL}/?page=manager-requests`,
+      request_id: req.id,
+      manager_url: `${APP_URL}/?page=manager-requests`
+    });
+  } catch(e) { console.warn('EmailJS cancel request email:', e); }
+}
+
+async function sendCancelResponseEmail(req, status) {
+  const isApproved = status === 'approved';
+  const statusMsg = isApproved ? 'ACCEPTÉE ✅' : 'REFUSÉE ❌';
+  try {
+    emailjs.send(EJS_SERVICE, EJS_TPL_RESP, {
+      to_email: req.userEmail,
+      reply_to: MANAGER_EMAIL,
+      subject: `Votre demande d'annulation d'absence (${req.type}) a été ${isApproved ? 'acceptée ✅' : 'refusée ❌'}`,
+      employee_name: req.userName,
+      status_message:
+        `📋 RÉPONSE À VOTRE DEMANDE D'ANNULATION D'ABSENCE\n\n` +
+        `Bonjour ${req.userName},\n\n` +
+        `Votre demande d'annulation pour l'absence suivante a été : ${statusMsg}\n\n` +
+        `Type : ${req.type}\n` +
+        `Date(s) : ${req.dateLabel || fmtDisplay(req.date)}\n` +
+        `Durée : ${req.qLabel || (req.hours + 'h')}\n\n` +
+        (isApproved
+          ? `✅ Vos journées ont été automatiquement rétablies selon vos horaires prévus à l'origine sur votre planning.\n\n`
+          : `❌ L'absence reste maintenue sur votre planning.\n\n`) +
+        `Consultez votre planning : ${APP_URL}`,
+      app_url: APP_URL
+    });
+  } catch(e) { console.warn('EmailJS cancel response email:', e); }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -3466,7 +3619,7 @@ function matchesMgrReqBaseFilters(r, f) {
 function updateMgrReqTabCounts() {
   const f = mgrReqFilters;
   const base = allMgrRequests.filter(r => matchesMgrReqBaseFilters(r, f));
-  const counts = { all:0, pending:0, approved:0, waiting:0, rejected:0, cancelled:0, archived:0 };
+  const counts = { all:0, pending:0, cancel_pending:0, approved:0, waiting:0, rejected:0, cancelled:0, archived:0 };
   base.forEach(r => {
     if (r.status !== 'archived') counts.all++;
     if (counts[r.status] !== undefined) counts[r.status]++;
@@ -3480,47 +3633,70 @@ function updateMgrReqTabCounts() {
 function renderMgrRequests() {
   const f = mgrReqFilters;
   let list = allMgrRequests.filter(r => matchesMgrReqBaseFilters(r, f));
-
   // "all" exclut les archivées, "archived" les affiche seules
   if (f.status === 'archived') list = list.filter(r => r.status === 'archived');
   else if (f.status === 'all') list = list.filter(r => r.status !== 'archived');
   else list = list.filter(r => r.status === f.status);
-
   if (f.sort === 'dateAsc')  list = list.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
   if (f.sort === 'dateDesc') list = list.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-
   updateMgrReqTabCounts();
   const countEl = document.getElementById('mgrReqResultCount');
   if (countEl) countEl.textContent = list.length ? `${list.length} demande${list.length>1?'s':''} affichée${list.length>1?'s':''}` : '';
-
   const container = document.getElementById('mgrReqList');
   if (!list.length) {
     container.innerHTML = `<div class="empty"><div class="ei">📭</div><h3>Aucune demande</h3><p>Essayez d'élargir vos filtres.</p></div>`;
     return;
   }
   const isArchived = f.status === 'archived';
-  container.innerHTML = list.map(r => `
-    <div class="req-card" style="gap:10px">
-      ${!isArchived ? `<input type="checkbox" class="req-check" data-id="${r.id}"
-        style="width:17px;height:17px;cursor:pointer;flex-shrink:0;accent-color:var(--navy)"
-        title="Sélectionner pour archiver">` : ''}
-      <div class="req-info" style="flex:1">
-        <div class="req-emp">${r.userName}</div>
-        <div class="req-detail">
-          <strong>${r.type}</strong> · ${r.dateLabel||fmtDisplay(r.date)} · <strong>${r.qLabel||(r.hours+'h')}</strong>
-          ${r.comment ? `<br><em>${r.comment}</em>` : ''}
-          <br><small style="color:var(--g400)">Email : ${r.userEmail}</small>
-        </div>
-      </div>
-      <span class="status-badge s-${r.status}" style="margin-right:4px">${statusLabel(r.status)}</span>
-      <div class="req-actions">
+  container.innerHTML = list.map(r => {
+    const isCancelReq = r.status === 'cancel_pending';
+    let cancelInfoBanner = '';
+    if (isCancelReq) {
+      cancelInfoBanner = `
+        <div style="background:#FEE2E2;border:1px solid #FCA5A5;border-radius:8px;padding:8px 12px;margin-top:8px;font-size:12px;color:#991B1B">
+          <strong>⚠️ DEMANDE D'ANNULATION D'ABSENCE</strong>
+          ${r.cancelReason ? `<br><span>Motif : <em>${escapeHtml(r.cancelReason)}</em></span>` : '<br><em>Aucun motif précisé</em>'}
+          <div style="font-size:11px;color:#B91C1C;margin-top:3px">💡 En acceptant, le planning du collaborateur reviendra automatiquement à ses heures prévues à l'origine.</div>
+        </div>`;
+    }
+
+    let actionsHtml = '';
+    if (isCancelReq && !isArchived) {
+      actionsHtml = `
+        <button class="btn btn-ok btn-sm" onclick="processCancelRequest('${r.id}','approved')" title="Accepter l'annulation et rétablir les heures d'origine">✓ Accepter l'annulation</button>
+        <button class="btn btn-err btn-sm" onclick="processCancelRequest('${r.id}','rejected')" title="Refuser l'annulation et maintenir l'absence">✗ Refuser l'annulation</button>
+        <button class="btn btn-secondary btn-sm" onclick="archiveOne('${r.id}')" title="Archiver">🗂</button>
+      `;
+    } else {
+      actionsHtml = `
         ${!isArchived && r.status!=='approved' ? `<button class="btn btn-ok btn-sm" onclick="processRequest('${r.id}','approved')">✓ Approuver</button>` : ''}
         ${!isArchived && r.status!=='waiting'  ? `<button class="btn btn-warn btn-sm" onclick="processRequest('${r.id}','waiting')">⏸ Attente</button>` : ''}
         ${!isArchived && r.status!=='rejected' ? `<button class="btn btn-err btn-sm" onclick="processRequest('${r.id}','rejected')">✗ Refuser</button>` : ''}
         ${!isArchived ? `<button class="btn btn-secondary btn-sm" onclick="archiveOne('${r.id}')" title="Archiver">🗂</button>` : ''}
         ${isArchived  ? `<button class="btn btn-secondary btn-sm" onclick="unarchiveOne('${r.id}')">↩ Restaurer</button>` : ''}
-      </div>
-    </div>`).join('');
+      `;
+    }
+
+    return `
+      <div class="req-card" style="gap:10px;${isCancelReq ? 'border-left:4px solid #EF4444;background:#FFFBFB' : ''}">
+        ${!isArchived ? `<input type="checkbox" class="req-check" data-id="${r.id}"
+          style="width:17px;height:17px;cursor:pointer;flex-shrink:0;accent-color:var(--navy)"
+          title="Sélectionner pour archiver">` : ''}
+        <div class="req-info" style="flex:1">
+          <div class="req-emp">${r.userName} ${isCancelReq ? '<span style="font-size:11px;background:#FEE2E2;color:#DC2626;padding:2px 6px;border-radius:6px;font-weight:700;margin-left:6px">Demande d\'annulation</span>' : ''}</div>
+          <div class="req-detail">
+            <strong>${r.type}</strong> · ${r.dateLabel||fmtDisplay(r.date)} · <strong>${r.qLabel||(r.hours+'h')}</strong>
+            ${r.comment ? `<br><em>Commentaire initial : ${escapeHtml(r.comment)}</em>` : ''}
+            <br><small style="color:var(--g400)">Email : ${r.userEmail}</small>
+          </div>
+          ${cancelInfoBanner}
+        </div>
+        <span class="status-badge s-${r.status}" style="margin-right:4px">${statusLabel(r.status)}</span>
+        <div class="req-actions">
+          ${actionsHtml}
+        </div>
+      </div>`;
+  }).join('');
 }
 
 function filterReqs(filter, el) {
@@ -3591,7 +3767,7 @@ async function processRequest(requestId, newStatus) {
   try {
     await db.collection('absenceRequests').doc(requestId).update({status:newStatus,processedAt:firebase.firestore.FieldValue.serverTimestamp()});
     const doc=await db.collection('absenceRequests').doc(requestId).get();
-    const req=doc.data();
+    const req={ id: doc.id, ...doc.data() };
     if (newStatus==='approved') await applyAbsToSchedule(req);
     if (newStatus==='rejected') await removeAbsFromSchedule(req);
     await sendResponseEmail(req, newStatus);
@@ -3603,17 +3779,61 @@ async function processRequest(requestId, newStatus) {
   } catch(e) { toast('Erreur lors du traitement.','error'); console.error(e); }
 }
 
+async function processCancelRequest(requestId, decision) {
+  try {
+    const docRef = db.collection('absenceRequests').doc(requestId);
+    const doc = await docRef.get();
+    if (!doc.exists) { toast('Demande introuvable.', 'error'); return; }
+    const req = { id: doc.id, ...doc.data() };
+
+    if (decision === 'approved') {
+      await docRef.update({
+        status: 'cancelled',
+        cancelApproved: true,
+        cancellationProcessedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        processedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      await removeAbsFromSchedule(req);
+      await sendCancelResponseEmail(req, 'approved');
+      toast(`Demande d'annulation acceptée pour ${req.userName} ! Planning d'origine rétabli.`, 'success');
+      logAudit('cancel_request_approved', `Demande d'annulation acceptée pour ${req.userName} (${req.type} ${req.dateLabel || req.date}) → Planning d'origine rétabli`);
+    } else {
+      const prevStatus = req.previousStatus || 'approved';
+      await docRef.update({
+        status: prevStatus,
+        cancelApproved: false,
+        cancelRejectedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        processedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      await sendCancelResponseEmail(req, 'rejected');
+      toast(`Demande d'annulation refusée pour ${req.userName}.`, 'info');
+      logAudit('cancel_request_rejected', `Demande d'annulation refusée pour ${req.userName} (${req.type} ${req.dateLabel || req.date})`);
+    }
+
+    if (currentUser && (currentUser.username === req.userId || currentUser.id === req.userId)) {
+      const snap = await db.collection('schedules').doc(uid()).get();
+      if (snap.exists) currentSchedule = snap.data().days || {};
+      if (typeof renderCalMonth === 'function' && typeof currentCalMonth !== 'undefined') renderCalMonth(currentCalMonth);
+      if (typeof updateStats === 'function') updateStats();
+    }
+
+    await loadMgrRequests();
+    await checkNotifBadge();
+  } catch(e) {
+    toast('Erreur lors du traitement de l\'annulation.', 'error');
+    console.error(e);
+  }
+}
+
 async function applyAbsToSchedule(req) {
   try {
     const doc=await db.collection('schedules').doc(req.userId).get();
     if (!doc.exists) return;
     const days=doc.data().days||{};
-
     // Calcul des heures par jour : total réparti sur les jours ouvrés
-    const startDate = new Date(req.date);
-    const endDate   = new Date(req.dateEnd || req.date);
+    const startDate = new Date(req.date + 'T12:00:00');
+    const endDate   = new Date((req.dateEnd || req.date) + 'T12:00:00');
     const isMultiDay = req.dateEnd && req.dateEnd !== req.date;
-
     // Collecter les jours ouvrés (lun–sam, hors dimanche) sur la période
     const workDays = [];
     const cur = new Date(startDate);
@@ -3623,7 +3843,6 @@ async function applyAbsToSchedule(req) {
       }
       cur.setDate(cur.getDate()+1);
     }
-
     // Récupérer le typePlanning du collaborateur pour calculer les heures restantes
     const userDoc = await db.collection('users').doc(req.userId).get();
     const tp = userDoc.exists ? (userDoc.data().typePlanning || {}) : {};
@@ -3637,16 +3856,15 @@ async function applyAbsToSchedule(req) {
     if (isByDay) {
       // CP/Maladie : remplace toute la journée avec 7h type absence
       for (const d of workDays) {
-        const k = d.toISOString().slice(0,10);
+        const k = fmtKey(d);
         days[k] = { hours: 7, type: req.type, note: `${req.type} approuvé`, absenceId: req.id };
       }
     } else if (isDeductible) {
       // Récupération & autres : déduire des heures prévues, garder le reste en "normal"
       const totalRecupHours = req.hours;
       const hoursPerDay = workDays.length > 0 ? totalRecupHours / workDays.length : totalRecupHours;
-
       for (const d of workDays) {
-        const k = d.toISOString().slice(0,10);
+        const k = fmtKey(d);
         const dayKey = DAYS_KEY[d.getDay()];
         // Heures prévues = typePlanning ou heures déjà saisies dans le schedule
         const plannedHours = parseFloat(tp[dayKey]) || parseFloat(days[k]?.hours) || 0;
@@ -3664,17 +3882,20 @@ async function applyAbsToSchedule(req) {
       // Fallback générique
       const hoursPerDay = workDays.length > 0 ? req.hours / workDays.length : req.hours;
       for (const d of workDays) {
-        const k = d.toISOString().slice(0,10);
+        const k = fmtKey(d);
         days[k] = { hours: Math.round(hoursPerDay*100)/100, type: req.type, note: `${req.type} approuvé`, absenceId: req.id };
       }
     }
-
     // Fallback si aucun jour ouvré (ex: week-end complet)
     if (workDays.length === 0) {
       days[req.date] = {hours:req.hours, type:req.type, note:`${req.type} approuvé`, absenceId:req.id};
     }
-
     await db.collection('schedules').doc(req.userId).update({days});
+    if (currentUser && (currentUser.username === req.userId || currentUser.id === req.userId)) {
+      currentSchedule = days;
+      if (typeof renderCalMonth === 'function' && typeof currentCalMonth !== 'undefined') renderCalMonth(currentCalMonth);
+      if (typeof updateStats === 'function') updateStats();
+    }
   } catch(e) { console.error('applyAbs:',e); }
 }
 
@@ -3686,23 +3907,29 @@ async function removeAbsFromSchedule(req) {
     const days=doc.data().days||{};
     const userSnap = await db.collection('users').doc(req.userId).get();
     const userTp = userSnap.exists ? (userSnap.data().typePlanning || {}) : {};
-
-    const startDate = new Date(req.date);
-    const endDate   = new Date(req.dateEnd || req.date);
+    const startDate = new Date(req.date + 'T12:00:00');
+    const endDate   = new Date((req.dateEnd || req.date) + 'T12:00:00');
     let changed = false;
     const cur = new Date(startDate);
     while (cur <= endDate) {
-      const k = cur.toISOString().slice(0,10);
-      if (days[k]?.absenceId === req.id) {
+      const k = fmtKey(cur);
+      if (days[k]?.absenceId === req.id || (days[k] && days[k].type === req.type)) {
         // Restaurer les heures du typePlanning pour ce jour
-        const dayKey = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'][new Date(k+'T12:00:00').getDay()];
+        const dayKey = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'][cur.getDay()];
         const restoredHours = parseFloat(userTp?.[dayKey]) || 0;
-        days[k] = {hours: restoredHours, type: restoredHours>0?'normal':'repos', note:'Absence annulée'};
+        days[k] = {hours: restoredHours, type: restoredHours>0?'normal':'repos', note:''};
         changed = true;
       }
       cur.setDate(cur.getDate()+1);
     }
-    if (changed) await db.collection('schedules').doc(req.userId).update({days});
+    if (changed) {
+      await db.collection('schedules').doc(req.userId).update({days});
+      if (currentUser && (currentUser.username === req.userId || currentUser.id === req.userId)) {
+        currentSchedule = days;
+        if (typeof renderCalMonth === 'function' && typeof currentCalMonth !== 'undefined') renderCalMonth(currentCalMonth);
+        if (typeof updateStats === 'function') updateStats();
+      }
+    }
   } catch(e) { console.error('removeAbs:',e); }
 }
 
@@ -3728,6 +3955,13 @@ async function sendResponseEmail(req, status) {
 
 async function processRequestAction(requestId, action) {
   if (!currentUser||currentUser.role!=='admin') return;
+  if (action === 'approve_cancel' || action === 'reject_cancel') {
+    const decision = action === 'approve_cancel' ? 'approved' : 'rejected';
+    toast('Traitement de la demande d\'annulation…', 'warning');
+    await processCancelRequest(requestId, decision);
+    showPage('manager-requests');
+    return;
+  }
   const statusMap={approve:'approved',reject:'rejected',waiting:'waiting'};
   const s=statusMap[action]; if (!s) return;
   toast('Traitement en cours…','warning');
@@ -6445,7 +6679,7 @@ async function adminDownloadPdf(acompteId, step) {
 }
 
 function statusLabel(s) {
-  return {pending:'En attente',approved:'Approuvée',rejected:'Refusée',waiting:'En cours',cancelled:'Annulée',archived:'Archivée 🗂'}[s]||s;
+  return {pending:'En attente',cancel_pending:'Annulation demandée ⏳',approved:'Approuvée',rejected:'Refusée',waiting:'En cours',cancelled:'Annulée',archived:'Archivée 🗂'}[s]||s;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -7442,16 +7676,14 @@ function renderAbscal() {
 function openAbscalDetail(requestId) {
   const r = abscalRequests.find(x => x.id === requestId);
   if (!r) return;
-
-  const statusLabels = { pending:'⏳ En attente', approved:'✅ Approuvée', waiting:'⏸ En cours', rejected:'❌ Refusée' };
+  const statusLabels = { pending:'⏳ En attente', cancel_pending:'⚠️ Annulation demandée', approved:'✅ Approuvée', waiting:'⏸ En cours', rejected:'❌ Refusée', cancelled:'🚫 Annulée' };
   const tc = ABSCAL_TYPE_COLORS[r.type] || {};
   const createdDate = r.createdAt?.seconds ? new Date(r.createdAt.seconds * 1000).toLocaleDateString('fr-FR') : '—';
-
   document.getElementById('abscalDetailTitle').textContent = r.userName;
   document.getElementById('abscalDetailBody').innerHTML = `
-    <div style="margin-bottom:16px;padding:10px 14px;border-radius:10px;background:${tc.bg||'var(--g100)'};border-left:4px solid ${tc.border||'var(--g300)'}">
-      <div style="font-weight:700;font-size:14px;color:${tc.text||'var(--navy)'}">🏷 ${r.type}</div>
-      <div style="font-size:12px;color:${tc.text||'var(--g500)'};margin-top:3px">${statusLabels[r.status] || r.status}</div>
+    <div style="margin-bottom:16px;padding:10px 14px;border-radius:10px;background:${r.status === 'cancel_pending' ? '#FEE2E2' : (tc.bg||'var(--g100)')};border-left:4px solid ${r.status === 'cancel_pending' ? '#EF4444' : (tc.border||'var(--g300)')}">
+      <div style="font-weight:700;font-size:14px;color:${r.status === 'cancel_pending' ? '#991B1B' : (tc.text||'var(--navy)')}">🏷 ${r.type}</div>
+      <div style="font-size:12px;color:${r.status === 'cancel_pending' ? '#B91C1C' : (tc.text||'var(--g500)')};margin-top:3px;font-weight:600">${statusLabels[r.status] || r.status}</div>
     </div>
     <div class="abscal-info-row">
       <span class="abscal-info-label">Collaborateur</span>
@@ -7473,18 +7705,22 @@ function openAbscalDetail(requestId) {
       <span class="abscal-info-label">Soumise le</span>
       <span class="abscal-info-val">${createdDate}</span>
     </div>
-    ${r.comment ? `<div class="abscal-info-row"><span class="abscal-info-label">Commentaire</span><span class="abscal-info-val" style="max-width:220px;text-align:right">${r.comment}</span></div>` : ''}
+    ${r.cancelReason ? `<div class="abscal-info-row"><span class="abscal-info-label" style="color:#DC2626">Motif annulation</span><span class="abscal-info-val" style="max-width:220px;text-align:right;color:#DC2626;font-weight:600">${escapeHtml(r.cancelReason)}</span></div>` : ''}
+    ${r.comment ? `<div class="abscal-info-row"><span class="abscal-info-label">Commentaire</span><span class="abscal-info-val" style="max-width:220px;text-align:right">${escapeHtml(r.comment)}</span></div>` : ''}
     ${r.userEmail ? `<div class="abscal-info-row"><span class="abscal-info-label">Email</span><span class="abscal-info-val" style="font-size:11px">${r.userEmail}</span></div>` : ''}
   `;
-
   // Boutons d'action selon statut
   let actions = '';
-  if (r.status !== 'approved') actions += `<button class="btn btn-ok" onclick="abscalProcess('${r.id}','approved')">✓ Approuver</button>`;
-  if (r.status !== 'waiting')  actions += `<button class="btn btn-warn" onclick="abscalProcess('${r.id}','waiting')">⏸ Mettre en attente</button>`;
-  if (r.status !== 'rejected') actions += `<button class="btn btn-err" onclick="abscalProcess('${r.id}','rejected')">✗ Refuser</button>`;
+  if (r.status === 'cancel_pending') {
+    actions += `<button class="btn btn-ok" onclick="abscalProcessCancel('${r.id}','approved')" title="Accepter l'annulation et rétablir les heures d'origine">✓ Accepter l'annulation</button>`;
+    actions += `<button class="btn btn-err" onclick="abscalProcessCancel('${r.id}','rejected')" title="Refuser l'annulation et maintenir l'absence">✗ Refuser l'annulation</button>`;
+  } else {
+    if (r.status !== 'approved') actions += `<button class="btn btn-ok" onclick="abscalProcess('${r.id}','approved')">✓ Approuver</button>`;
+    if (r.status !== 'waiting')  actions += `<button class="btn btn-warn" onclick="abscalProcess('${r.id}','waiting')">⏸ Mettre en attente</button>`;
+    if (r.status !== 'rejected') actions += `<button class="btn btn-err" onclick="abscalProcess('${r.id}','rejected')">✗ Refuser</button>`;
+  }
   actions += `<button class="btn btn-secondary" onclick="closeAbscalDetail();showPage('manager-requests')" style="margin-top:6px;font-size:12px">📋 Voir toutes les demandes</button>`;
   document.getElementById('abscalDetailActions').innerHTML = actions;
-
   document.getElementById('abscalDetailPanel').classList.add('open');
   document.getElementById('abscalDetailOverlay').style.display = 'block';
 }
@@ -7499,9 +7735,17 @@ async function abscalProcess(requestId, newStatus) {
   toast('Traitement en cours…', 'warning');
   try {
     await processRequest(requestId, newStatus);
-    // Recharger les demandes et re-rendre le calendrier
     await loadAbsenceCalendar();
     toast(`Demande ${statusLabel(newStatus).toLowerCase()} ✔`, 'success');
+  } catch(e) { toast('Erreur lors du traitement.', 'error'); console.error(e); }
+}
+
+async function abscalProcessCancel(requestId, decision) {
+  closeAbscalDetail();
+  toast('Traitement de l\'annulation en cours…', 'warning');
+  try {
+    await processCancelRequest(requestId, decision);
+    await loadAbsenceCalendar();
   } catch(e) { toast('Erreur lors du traitement.', 'error'); console.error(e); }
 }
 

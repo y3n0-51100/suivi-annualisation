@@ -1,0 +1,6 @@
+{
+  "name": "Suivi Annualisation",
+  "description": "Application de suivi du temps de travail et d'annualisation des heures.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

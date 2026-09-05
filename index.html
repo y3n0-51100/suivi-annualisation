@@ -1250,6 +1250,32 @@ body.mobile-nav-open .mobile-backdrop{display:block}
               </select>
             </div>
           </div>
+          <div class="form-row">
+            <div class="fg" style="margin-bottom:12px">
+              <label>📊 Statut de la demande</label>
+              <select id="mgrReqStatusFilter" onchange="onMgrReqFilterChange()">
+                <option value="all">Toutes (hors archivées)</option>
+                <option value="any">Toutes, archivées incluses</option>
+                <option value="pending">⏳ En attente</option>
+                <option value="cancel_pending">⚠️ Annulation demandée</option>
+                <option value="approved">✅ Approuvées</option>
+                <option value="waiting">⏸ En cours</option>
+                <option value="rejected">❌ Refusées</option>
+                <option value="cancelled">🚫 Annulées</option>
+                <option value="archived">🗂 Archivées</option>
+              </select>
+            </div>
+            <div class="fg" style="margin-bottom:12px">
+              <label>🔀 Trier par</label>
+              <select id="mgrReqSort" onchange="onMgrReqFilterChange()">
+                <option value="recent">Plus récentes d'abord</option>
+                <option value="dateAsc">Date d'absence ↑</option>
+                <option value="dateDesc">Date d'absence ↓</option>
+                <option value="nameAsc">Nom du collaborateur A→Z</option>
+                <option value="nameDesc">Nom du collaborateur Z→A</option>
+              </select>
+            </div>
+          </div>
           <div class="form-row" id="mgrReqCustomDates" style="display:none">
             <div class="fg" style="margin-bottom:0"><label>Du</label><input type="date" id="mgrReqDateFrom" onchange="onMgrReqFilterChange()"></div>
             <div class="fg" style="margin-bottom:0"><label>Au</label><input type="date" id="mgrReqDateTo" onchange="onMgrReqFilterChange()"></div>
@@ -1269,13 +1295,9 @@ body.mobile-nav-open .mobile-backdrop{display:block}
             <div class="ftab" onclick="filterReqs('rejected',this)">Refusées <span class="ftab-count" id="cnt-rejected"></span></div>
             <div class="ftab" onclick="filterReqs('cancelled',this)">Annulées <span class="ftab-count" id="cnt-cancelled"></span></div>
             <div class="ftab" onclick="filterReqs('archived',this)">🗂 Archivées <span class="ftab-count" id="cnt-archived"></span></div>
+            <div class="ftab" onclick="filterReqs('any',this)">📚 Tout (archives incl.) <span class="ftab-count" id="cnt-any"></span></div>
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <select id="mgrReqSort" onchange="onMgrReqFilterChange()" style="padding:7px 10px;border:1.5px solid var(--g300);border-radius:8px;font-size:12px;background:#fff;color:var(--g700)">
-              <option value="recent">Plus récentes d'abord</option>
-              <option value="dateAsc">Date d'absence ↑</option>
-              <option value="dateDesc">Date d'absence ↓</option>
-            </select>
             <button class="btn btn-secondary btn-sm" onclick="archiveSelected()" style="font-size:12px">☑️ Archiver sélection</button>
             <button class="btn btn-secondary btn-sm" onclick="archiveAll()" style="font-size:12px">🗂 Tout archiver</button>
           </div>
@@ -3346,12 +3368,17 @@ async function loadMyRequests() {
       let actionBtn = '';
       let cancelNotice = '';
 
-      if (r.status === 'approved' || r.status === 'waiting') {
+      if (canRequestCancellation(r)) {
         actionBtn = `<button class="btn btn-sm" style="background:#FFF1F2;color:#E11D48;border:1px solid #FDA4AF;font-weight:600;display:inline-flex;align-items:center;gap:4px"
           onclick="openCancelAbsenceModal('${r.id}')"
           title="Faire une demande d'annulation pour cette absence">
           🔄 Demande d'annulation
         </button>`;
+        if (r.status === 'archived') {
+          cancelNotice = `<div style="margin-top:6px;padding:6px 10px;border-radius:6px;background:#F1F5F9;border:1px solid #CBD5E1;font-size:11.5px;color:#475569">
+            🗂 <strong>Demande archivée</strong> — l'absence n'a pas encore eu lieu : vous pouvez toujours en demander l'annulation.
+          </div>`;
+        }
       } else if (r.status === 'cancel_pending') {
         cancelNotice = `<div style="margin-top:6px;padding:6px 10px;border-radius:6px;background:#FEF2F2;border:1px solid #FECACA;font-size:11.5px;color:#991B1B">
           ⏳ <strong>Demande d'annulation transmise :</strong> en attente de validation par votre responsable. Le planning d'origine sera rétabli dès acceptation.
@@ -3387,6 +3414,19 @@ async function loadMyRequests() {
 
 // ─── Modal et soumission de demande d'annulation par le collaborateur ───
 let pendingCancelRequestId = null;
+
+// Une absence peut faire l'objet d'une demande d'annulation si elle est approuvée
+// ou en liste d'attente. Cas particulier : une demande déjà archivée par l'admin
+// reste annulable tant que la date concernée est aujourd'hui ou dans le futur.
+function canRequestCancellation(r) {
+  if (!r) return false;
+  if (r.status === 'approved' || r.status === 'waiting') return true;
+  if (r.status !== 'archived') return false;
+  const prev = r.previousStatus || '';
+  if (prev !== 'approved' && prev !== 'waiting') return false;
+  const today = fmtKey(new Date());
+  return (r.dateEnd || r.date || '') >= today;
+}
 
 async function openCancelAbsenceModal(requestId) {
   pendingCancelRequestId = requestId;
@@ -3427,12 +3467,16 @@ async function submitCancelAbsence() {
     }
     const r = { id: doc.id, ...doc.data() };
 
-    await docRef.update({
+    const cancelUpdate = {
       status: 'cancel_pending',
       previousStatus: r.status || 'approved',
       cancelReason: reason,
       cancelRequestedAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    };
+    // Demande archivée : on conserve le statut d'avant archivage pour pouvoir
+    // la remettre exactement dans son état d'origine si l'annulation est refusée.
+    if (r.status === 'archived') cancelUpdate.archivedPreviousStatus = r.previousStatus || 'approved';
+    await docRef.update(cancelUpdate);
 
     await sendCancelRequestEmail(r, reason);
 
@@ -3556,19 +3600,19 @@ function initMgrReqFilterOptions() {
 
 function getMgrReqPeriodRange(period) {
   const today = new Date(); today.setHours(0,0,0,0);
-  const todayKey = today.toISOString().slice(0,10);
+  const todayKey = fmtKey(today);
   if (period==='upcoming') return { from: todayKey, to: null };
   if (period==='past')     return { from: null, to: todayKey };
   if (period==='thisWeek') {
     const dow = today.getDay();
     const mon = new Date(today); mon.setDate(today.getDate() + (dow===0 ? -6 : 1-dow));
     const sun = new Date(mon);   sun.setDate(mon.getDate()+6);
-    return { from: mon.toISOString().slice(0,10), to: sun.toISOString().slice(0,10) };
+    return { from: fmtKey(mon), to: fmtKey(sun) };
   }
   if (period==='thisMonth') {
     const first = new Date(today.getFullYear(), today.getMonth(), 1);
     const last  = new Date(today.getFullYear(), today.getMonth()+1, 0);
-    return { from: first.toISOString().slice(0,10), to: last.toISOString().slice(0,10) };
+    return { from: fmtKey(first), to: fmtKey(last) };
   }
   if (period==='custom') return { from: mgrReqFilters.dateFrom||null, to: mgrReqFilters.dateTo||null };
   return { from:null, to:null };
@@ -3581,6 +3625,7 @@ function onMgrReqPeriodChange() {
 }
 
 function onMgrReqFilterChange() {
+  mgrReqFilters.status   = document.getElementById('mgrReqStatusFilter')?.value || 'all';
   mgrReqFilters.search   = (document.getElementById('mgrReqSearch')?.value || '').trim().toLowerCase();
   mgrReqFilters.userId   = document.getElementById('mgrReqUserFilter')?.value || 'all';
   mgrReqFilters.type     = document.getElementById('mgrReqTypeFilter')?.value || 'all';
@@ -3588,16 +3633,27 @@ function onMgrReqFilterChange() {
   mgrReqFilters.dateFrom = document.getElementById('mgrReqDateFrom')?.value || '';
   mgrReqFilters.dateTo   = document.getElementById('mgrReqDateTo')?.value || '';
   mgrReqFilters.sort     = document.getElementById('mgrReqSort')?.value || 'recent';
+  syncMgrReqStatusTabs(mgrReqFilters.status);
   renderMgrRequests();
+}
+
+// Le statut est pilotable à deux endroits (onglets + liste déroulante) : on garde
+// les deux affichages synchronisés sur la même valeur.
+function syncMgrReqStatusTabs(status) {
+  document.querySelectorAll('#mgrReqTabs .ftab').forEach(t => {
+    const m = (t.getAttribute('onclick')||'').match(/filterReqs\('([^']+)'/);
+    t.classList.toggle('active', !!m && m[1] === status);
+  });
+  const sel = document.getElementById('mgrReqStatusFilter');
+  if (sel && sel.value !== status) sel.value = status;
 }
 
 function resetMgrReqFilters() {
   mgrReqFilters = { status:'all', userId:'all', type:'all', search:'', period:'all', dateFrom:'', dateTo:'', sort:'recent' };
   ['mgrReqSearch','mgrReqDateFrom','mgrReqDateTo'].forEach(id => { const el=document.getElementById(id); if (el) el.value=''; });
-  ['mgrReqUserFilter','mgrReqTypeFilter','mgrReqPeriod','mgrReqSort'].forEach(id => { const el=document.getElementById(id); if (el) el.value = id==='mgrReqSort' ? 'recent' : 'all'; });
+  ['mgrReqUserFilter','mgrReqTypeFilter','mgrReqPeriod','mgrReqSort','mgrReqStatusFilter'].forEach(id => { const el=document.getElementById(id); if (el) el.value = id==='mgrReqSort' ? 'recent' : 'all'; });
   document.getElementById('mgrReqCustomDates').style.display = 'none';
-  document.querySelectorAll('#mgrReqTabs .ftab').forEach(t=>t.classList.remove('active'));
-  document.querySelector('#mgrReqTabs .ftab')?.classList.add('active');
+  syncMgrReqStatusTabs('all');
   renderMgrRequests();
 }
 
@@ -3619,8 +3675,9 @@ function matchesMgrReqBaseFilters(r, f) {
 function updateMgrReqTabCounts() {
   const f = mgrReqFilters;
   const base = allMgrRequests.filter(r => matchesMgrReqBaseFilters(r, f));
-  const counts = { all:0, pending:0, cancel_pending:0, approved:0, waiting:0, rejected:0, cancelled:0, archived:0 };
+  const counts = { all:0, any:0, pending:0, cancel_pending:0, approved:0, waiting:0, rejected:0, cancelled:0, archived:0 };
   base.forEach(r => {
+    counts.any++;
     if (r.status !== 'archived') counts.all++;
     if (counts[r.status] !== undefined) counts[r.status]++;
   });
@@ -3634,11 +3691,13 @@ function renderMgrRequests() {
   const f = mgrReqFilters;
   let list = allMgrRequests.filter(r => matchesMgrReqBaseFilters(r, f));
   // "all" exclut les archivées, "archived" les affiche seules
-  if (f.status === 'archived') list = list.filter(r => r.status === 'archived');
-  else if (f.status === 'all') list = list.filter(r => r.status !== 'archived');
-  else list = list.filter(r => r.status === f.status);
+  if (f.status === 'archived')      list = list.filter(r => r.status === 'archived');
+  else if (f.status === 'all')      list = list.filter(r => r.status !== 'archived');
+  else if (f.status !== 'any')      list = list.filter(r => r.status === f.status); // 'any' = tout, archives comprises
   if (f.sort === 'dateAsc')  list = list.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
   if (f.sort === 'dateDesc') list = list.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  if (f.sort === 'nameAsc')  list = list.slice().sort((a,b)=>(a.userName||'').localeCompare(b.userName||''));
+  if (f.sort === 'nameDesc') list = list.slice().sort((a,b)=>(b.userName||'').localeCompare(a.userName||''));
   updateMgrReqTabCounts();
   const countEl = document.getElementById('mgrReqResultCount');
   if (countEl) countEl.textContent = list.length ? `${list.length} demande${list.length>1?'s':''} affichée${list.length>1?'s':''}` : '';
@@ -3647,14 +3706,15 @@ function renderMgrRequests() {
     container.innerHTML = `<div class="empty"><div class="ei">📭</div><h3>Aucune demande</h3><p>Essayez d'élargir vos filtres.</p></div>`;
     return;
   }
-  const isArchived = f.status === 'archived';
   container.innerHTML = list.map(r => {
+    const isArchived = r.status === 'archived';
     const isCancelReq = r.status === 'cancel_pending';
     let cancelInfoBanner = '';
     if (isCancelReq) {
       cancelInfoBanner = `
         <div style="background:#FEE2E2;border:1px solid #FCA5A5;border-radius:8px;padding:8px 12px;margin-top:8px;font-size:12px;color:#991B1B">
           <strong>⚠️ DEMANDE D'ANNULATION D'ABSENCE</strong>
+          ${r.previousStatus === 'archived' ? '<span style="margin-left:6px;font-size:10.5px;background:#E2E8F0;color:#475569;padding:2px 6px;border-radius:6px;font-weight:700">🗂 issue des archives</span>' : ''}
           ${r.cancelReason ? `<br><span>Motif : <em>${escapeHtml(r.cancelReason)}</em></span>` : '<br><em>Aucun motif précisé</em>'}
           <div style="font-size:11px;color:#B91C1C;margin-top:3px">💡 En acceptant, le planning du collaborateur reviendra automatiquement à ses heures prévues à l'origine.</div>
         </div>`;
@@ -3701,8 +3761,7 @@ function renderMgrRequests() {
 
 function filterReqs(filter, el) {
   mgrReqFilters.status = filter;
-  document.querySelectorAll('#mgrReqTabs .ftab').forEach(t=>t.classList.remove('active'));
-  if (el) el.classList.add('active');
+  syncMgrReqStatusTabs(filter);
   renderMgrRequests();
 }
 
@@ -3799,12 +3858,15 @@ async function processCancelRequest(requestId, decision) {
       logAudit('cancel_request_approved', `Demande d'annulation acceptée pour ${req.userName} (${req.type} ${req.dateLabel || req.date}) → Planning d'origine rétabli`);
     } else {
       const prevStatus = req.previousStatus || 'approved';
-      await docRef.update({
+      const rejectUpdate = {
         status: prevStatus,
         cancelApproved: false,
         cancelRejectedAt: firebase.firestore.FieldValue.serverTimestamp(),
         processedAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
+      };
+      // Retour aux archives : on restaure aussi le statut d'avant archivage
+      if (prevStatus === 'archived') rejectUpdate.previousStatus = req.archivedPreviousStatus || 'approved';
+      await docRef.update(rejectUpdate);
       await sendCancelResponseEmail(req, 'rejected');
       toast(`Demande d'annulation refusée pour ${req.userName}.`, 'info');
       logAudit('cancel_request_rejected', `Demande d'annulation refusée pour ${req.userName} (${req.type} ${req.dateLabel || req.date})`);

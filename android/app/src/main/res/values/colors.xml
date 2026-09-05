@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Couleurs reprises du manifest.json de la PWA -->
+    <color name="colorPrimary">#1B2A4A</color>
+    <color name="colorPrimaryDark">#0F1E38</color>
+    <color name="navigationColor">#0F1E38</color>
+    <color name="backgroundColor">#0F1E38</color>
+    <color name="iconBackground">#0F1E38</color>
+</resources>

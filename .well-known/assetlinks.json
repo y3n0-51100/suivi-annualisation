@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "fr.but.mag17.annualisation",
+      "sha256_cert_fingerprints": [
+        "17:08:5A:E1:7C:DC:D6:F2:E5:01:D1:D3:4F:A2:59:17:BE:BA:7F:60:86:39:43:D1:6E:5F:89:E9:5D:2F:AE:0C"
+      ]
+    }
+  }
+]

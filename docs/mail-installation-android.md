@@ -2,9 +2,9 @@
 
 Deux versions du même message. Avant envoi, remplace :
 
-- `{{LIEN_APK}}` → lien de téléchargement du fichier `annualisation.apk`
+- `https://github.com/y3n0-51100/suivi-annualisation/releases/download/v1.1.0/annualisation.apk` → lien de téléchargement du fichier `annualisation.apk`
   (ex. `https://github.com/y3n0-51100/suivi-annualisation/releases/download/v1.0.0/annualisation.apk`)
-- `{{PRENOM}}` → prénom du collaborateur, ou supprime la mention
+- `` → prénom du collaborateur, ou supprime la mention
 
 **Version mise en page :** [`mail-installation-android.html`](mail-installation-android.html) —
 ouvre le fichier dans un navigateur, sélectionne tout, copie, et colle dans un
@@ -16,13 +16,13 @@ nouveau message Outlook ou Gmail (le format et les couleurs sont conservés).
 
 > **Objet : 📱 Votre planning et vos congés sur votre téléphone — installation en 2 minutes**
 
-Bonjour {{PRENOM}},
+Bonjour à toutes et à tous,
 
-L'outil de suivi de l'annualisation (planning, compteur d'heures, demandes d'absence) est désormais disponible sous forme d'application sur votre téléphone. Vous y accédez en un seul appui, sans passer par le navigateur.
+Une application mobile vient d'être créée pour votre planning : compteur d'heures, calendrier du mois, congés et demandes d'absence, le tout pensé pour le téléphone. Ce n'est pas le site habituel : l'affichage a été entièrement repensé pour être utilisable d'une seule main.
 
 L'installation prend moins de deux minutes.
 
-➡️ Lien de téléchargement : {{LIEN_APK}}
+➡️ Lien de téléchargement : https://github.com/y3n0-51100/suivi-annualisation/releases/download/v1.1.0/annualisation.apk
 
 **SUR ANDROID — ÉTAPE PAR ÉTAPE**
 

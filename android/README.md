@@ -1,15 +1,17 @@
 # Application Android — Suivi Annualisation
 
-Coquille **TWA** (Trusted Web Activity) autour de la PWA hébergée sur
-<https://annualisation.pages.dev>. L'APK n'embarque aucun code métier : il
-affiche le site en plein écran, sans barre d'adresse. Toute mise à jour de
-`index.html` déployée sur Cloudflare Pages est donc immédiatement visible dans
+Coquille **TWA** (Trusted Web Activity) autour de `app.html`, l'**interface
+mobile dédiée** — navigation par onglets, vignettes, feuilles glissantes,
+icônes maison : rien à voir avec l'outil web `index.html`, qui reste la version
+ordinateur. L'APK n'embarque aucun code métier : il affiche cette interface en
+plein écran, sans barre d'adresse. Toute mise à jour de `app.html` / `app.js`
+déployée sur Cloudflare Pages est donc immédiatement visible dans
 l'application, **sans avoir à republier l'APK**.
 
 | Paramètre | Valeur |
 |---|---|
 | Nom du paquet | `fr.but.mag17.annualisation` |
-| URL de lancement | `https://annualisation.pages.dev/index.html` |
+| URL de lancement | `https://annualisation.pages.dev/app.html` (interface mobile dédiée) |
 | Empreinte SHA-256 de signature | `17:08:5A:E1:7C:DC:D6:F2:E5:01:D1:D3:4F:A2:59:17:BE:BA:7F:60:86:39:43:D1:6E:5F:89:E9:5D:2F:AE:0C` |
 | Android minimum | 5.0 (API 21) |
 
@@ -93,6 +95,7 @@ d'adresse réapparaît.
 
 | Quoi | Où |
 |---|---|
+| Écrans de l'application | `/app.html` (structure + styles) et `/app.js` (logique) |
 | Nom affiché sous l'icône | `app/src/main/res/values/strings.xml` → `app_name` |
 | URL du site | `strings.xml` → `launch_url`, `host_name`, `asset_statements` |
 | Couleurs (barre d'état, splash) | `app/src/main/res/values/colors.xml` |

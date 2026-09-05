@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Annualisation</string>
-    <string name="launch_url" translatable="false">https://annualisation.pages.dev/index.html</string>
+    <string name="launch_url" translatable="false">https://annualisation.pages.dev/app.html</string>
     <string name="host_name" translatable="false">annualisation.pages.dev</string>
     <string name="asset_statements" translatable="false">
         [{

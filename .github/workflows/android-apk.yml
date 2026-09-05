@@ -13,6 +13,11 @@ on:
         description: 'Code de version (entier, à incrémenter à chaque build)'
         required: false
         default: '1'
+      publish_release:
+        description: 'Publier une release avec lien de téléchargement direct'
+        type: boolean
+        required: false
+        default: false
   push:
     tags:
       - 'v*'
@@ -76,14 +81,19 @@ jobs:
           path: dist/
           retention-days: 90
 
-      - name: Créer la release GitHub (sur tag uniquement)
-        if: startsWith(github.ref, 'refs/tags/v')
+      # Publie une release et crée le tag correspondant si nécessaire :
+      # sur un push de tag v*, ou sur demande explicite lors d'un lancement manuel.
+      - name: Publier la release GitHub
+        if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.publish_release == 'true'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ github.event.inputs.version_name || github.ref_name }}
+          name: Application Android v${{ github.event.inputs.version_name || github.ref_name }}
           files: |
             dist/annualisation.apk
             dist/annualisation.aab
           body: |
-            Application Android **Suivi Annualisation** (${{ github.ref_name }}).
+            Application Android **Suivi Annualisation**.
 
-            📥 Téléchargez `annualisation.apk` et ouvrez-le sur votre téléphone Android pour l'installer.
+            📥 Téléchargez `annualisation.apk` ci-dessous et ouvrez le fichier sur votre
+            téléphone Android pour l'installer.

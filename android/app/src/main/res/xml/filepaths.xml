@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Dossier dans lequel la librairie TWA écrit l'image de l'écran de démarrage
+     avant de la transmettre au navigateur. Le nom est imposé par la librairie
+     (SplashImageTransferTask.FOLDER_NAME) : toute autre valeur fait planter
+     l'application au lancement. -->
 <paths>
-    <files-path name="images" path="images/" />
+    <files-path name="twa_splash" path="twa_splash/" />
 </paths>

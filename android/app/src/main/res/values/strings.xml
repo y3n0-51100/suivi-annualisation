@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Annualisation</string>
-    <string name="launch_url" translatable="false">https://annualisation.pages.dev/app.html</string>
-    <string name="host_name" translatable="false">annualisation.pages.dev</string>
+    <string name="launch_url" translatable="false">https://suivi-annualisation.pages.dev/app.html</string>
+    <string name="host_name" translatable="false">suivi-annualisation.pages.dev</string>
     <string name="asset_statements" translatable="false">
         [{
             \"relation\": [\"delegate_permission/common.handle_all_urls\"],
             \"target\": {
                 \"namespace\": \"web\",
-                \"site\": \"https://annualisation.pages.dev\"
+                \"site\": \"https://suivi-annualisation.pages.dev\"
             }
         }]
     </string>

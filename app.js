@@ -18,7 +18,7 @@ const EJS_TPL_REQ = "template_qhe6l14";
 const EJS_TPL_RESP = "template_q9b7vac";
 const EJS_PUBLIC_KEY = "HrKWUniM8t71ICAlu";
 const MANAGER_EMAIL = "remi.schaffhauser@but.fr";
-const APP_URL = "https://annualisation.pages.dev";
+const APP_URL = "https://suivi-annualisation.pages.dev";
 
 const HOURS_TARGET = 1607;
 const PERIOD_START = '2026-06-01';

@@ -36,7 +36,7 @@ L'installation prend moins de deux minutes.
 
 **VOUS AVEZ UN IPHONE ?**
 
-Pas d'application à installer : ouvrez https://annualisation.pages.dev dans Safari, appuyez sur l'icône Partager (le carré avec une flèche), puis sur « Sur l'écran d'accueil ». Le résultat est identique.
+Pas d'application à installer : ouvrez https://suivi-annualisation.pages.dev dans Safari, appuyez sur l'icône Partager (le carré avec une flèche), puis sur « Sur l'écran d'accueil ». Le résultat est identique.
 
 **QUESTIONS FRÉQUENTES**
 

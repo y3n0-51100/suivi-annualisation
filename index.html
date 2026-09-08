@@ -779,6 +779,10 @@ body.mobile-nav-open .mobile-backdrop{display:block}
           <span class="ni">🚨</span><span>Alertes &amp; bilan</span>
           <span class="notif-badge" id="alertsBadge" style="display:none"></span>
         </div>
+        <div class="nav-label admin-only" style="margin-top:6px;display:none">Contrôle</div>
+        <div class="nav-item admin-only" data-page="check-sheet" onclick="showPage('check-sheet')" style="display:none">
+          <span class="ni">🧾</span><span>Vérif. feuille d'heures</span>
+        </div>
         <div class="nav-group-hd admin-only shut" style="display:none" onclick="toggleNavGrp(this)">📅 Planning <span class="chv">▼</span></div>
         <div class="nav-grp admin-only shut" style="display:none">
           <div class="nav-item admin-only" data-page="admin-edit-planning" onclick="showPage('admin-edit-planning')" style="display:none"><span class="ni">✏️</span><span>Modifier planning</span></div>
@@ -1650,6 +1654,29 @@ body.mobile-nav-open .mobile-backdrop{display:block}
           </div>
         </div>
         <div id="ppOut" style="display:none"></div>
+      </div>
+
+      <!-- ═══ PAGE: VÉRIFICATION VS FEUILLE D'HEURES ═══ -->
+      <div id="page-check-sheet" class="page">
+        <div class="ph">
+          <h2>🧾 Vérification vs Feuille d'heures</h2>
+          <p>Heures réalisées sur une période · Restant à faire depuis le 1<sup>er</sup> juin de l'exercice</p>
+        </div>
+        <div class="card" style="max-width:860px">
+          <div class="card-head"><div class="card-title">Paramètres de contrôle</div></div>
+          <div class="form-row">
+            <div class="fg"><label>Collaborateur</label><select id="vfhUser"><option value="">— Sélectionnez un collaborateur —</option></select></div>
+            <div class="fg"></div>
+          </div>
+          <div class="form-row">
+            <div class="fg"><label>Du</label><input type="date" id="vfhFrom" min="2026-06-01" max="2027-05-31"></div>
+            <div class="fg"><label>Au</label><input type="date" id="vfhTo" min="2026-06-01" max="2027-05-31"></div>
+          </div>
+          <div style="display:flex;gap:10px;justify-content:flex-end">
+            <button class="btn btn-primary" onclick="vfhAnalyse()">🔍 Analyser</button>
+          </div>
+        </div>
+        <div id="vfhResult" style="display:none"></div>
       </div>
 
       <!-- ═══ PAGE: MES ABSENCES MANAGER (ADMIN) ═══ -->
@@ -4811,6 +4838,7 @@ function showPage(id) {
     case 'info-1607':           renderInfo1607(); break;
     case 'config-period':       initConfigPeriod(); break;
     case 'pp-page':             initPPPage(); break;
+    case 'check-sheet':         initCheckSheetPage(); break;
     case 'manager-absences':    renderManagerAbsencesPage(); break;
     case 'all-reset':           break;
     case 'absence':
@@ -5605,6 +5633,203 @@ function clearAbsForm() {
   if(row) row.style.display='none';
   if (currentUser?.email) document.getElementById('absEmail').value=currentUser.email;
 }
+// ═══════════════════════════════════════════════════════════════
+// VÉRIFICATION VS FEUILLE D'HEURES (ADMIN)
+// Contrôle des heures réalisées par un collaborateur sur une
+// période libre, et restant à faire sur l'exercice en cumulant
+// toutes les heures depuis le 1er jour de la période (1er juin).
+// ═══════════════════════════════════════════════════════════════
+let vfhSchedule = {};   // planning chargé du collaborateur analysé
+let vfhUserId   = null;
+
+function vfhPeriodStartKey() {
+  const m = MONTHS[0];
+  return fmtKey(new Date(m.year, m.month, 1));
+}
+function vfhPeriodEndKey() {
+  const m = MONTHS[MONTHS.length - 1];
+  return fmtKey(new Date(m.year, m.month + 1, 0)); // dernier jour du mois
+}
+
+function initCheckSheetPage() {
+  const sel = document.getElementById('vfhUser');
+  const prev = sel.value;
+  const employees = allUsers.filter(u => u.username !== 'admin')
+                            .sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  sel.innerHTML = '<option value="">— Sélectionnez un collaborateur —</option>' +
+    employees.map(u => `<option value="${u.username}">${u.name} (@${u.username})</option>`).join('');
+  if (prev) sel.value = prev;
+
+  const start = vfhPeriodStartKey(), end = vfhPeriodEndKey();
+  const from = document.getElementById('vfhFrom'), to = document.getElementById('vfhTo');
+  [from, to].forEach(el => { el.min = start; el.max = end; });
+
+  // Par défaut : le mois en cours s'il appartient à l'exercice, sinon le 1er mois
+  if (!from.value || !to.value) {
+    const now = new Date();
+    let a = fmtKey(new Date(now.getFullYear(), now.getMonth(), 1));
+    let b = fmtKey(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+    if (a < start || a > end) {
+      a = start;
+      b = fmtKey(new Date(MONTHS[0].year, MONTHS[0].month + 1, 0));
+    }
+    from.value = a; to.value = b;
+  }
+  document.getElementById('vfhResult').style.display = 'none';
+  vfhSchedule = {}; vfhUserId = null;
+}
+
+// Cumul des heures réellement travaillées entre deux dates (bornes incluses)
+function vfhSumWorked(sched, fromKey, toKey) {
+  let total = 0, jours = 0;
+  Object.keys(sched).forEach(k => {
+    if (k < fromKey || k > toKey) return;
+    const d = sched[k];
+    if (!isWorkedEntry(d)) return;
+    const h = parseFloat(d?.hours) || 0;
+    if (h > 0) { total += h; jours++; }
+  });
+  return { total, jours };
+}
+
+// Détail des absences (non travaillées) posées sur la période
+function vfhAbsences(sched, fromKey, toKey) {
+  const res = {};
+  Object.keys(sched).forEach(k => {
+    if (k < fromKey || k > toKey) return;
+    const d = sched[k];
+    if (!d || isWorkedEntry(d)) return;
+    if (!res[d.type]) res[d.type] = { jours: 0, heures: 0 };
+    res[d.type].jours++;
+    res[d.type].heures += parseFloat(d.hours) || 0;
+  });
+  return res;
+}
+
+async function vfhAnalyse() {
+  const userId = document.getElementById('vfhUser').value;
+  const fromKey = document.getElementById('vfhFrom').value;
+  const toKey   = document.getElementById('vfhTo').value;
+
+  if (!userId)            { toast('Sélectionnez un collaborateur.', 'error'); return; }
+  if (!fromKey || !toKey) { toast('Renseignez la date de début et la date de fin.', 'error'); return; }
+  if (fromKey > toKey)    { toast('La date de début doit précéder la date de fin.', 'error'); return; }
+
+  const user = allUsers.find(u => u.username === userId);
+  if (!user) { toast('Collaborateur introuvable.', 'error'); return; }
+
+  try {
+    const doc = await db.collection('schedules').doc(userId).get();
+    vfhSchedule = doc.exists ? (doc.data().days || {}) : {};
+    vfhUserId   = userId;
+  } catch(e) {
+    console.error(e);
+    toast('Erreur lors du chargement du planning.', 'error'); return;
+  }
+
+  vfhRender(user, fromKey, toKey);
+}
+
+function vfhRender(user, fromKey, toKey) {
+  const isCadre = !!user.isCadre;
+  const unit    = isCadre ? 'j' : 'h';
+  const conv    = v => isCadre ? v / 2 : v;   // cadre : 2 demi-journées = 1 jour
+
+  const startKey = vfhPeriodStartKey();
+  const periode  = vfhSumWorked(vfhSchedule, fromKey, toKey);
+  const cumul    = vfhSumWorked(vfhSchedule, startKey, toKey);   // depuis le 1er juin
+  const annee    = vfhSumWorked(vfhSchedule, startKey, vfhPeriodEndKey());
+
+  const target      = effectiveTarget(user);
+  const donePeriode = conv(periode.total);
+  const doneCumul   = conv(cumul.total);
+  const doneAnnee   = conv(annee.total);
+  const reste       = target - doneCumul;
+  const pct         = target > 0 ? Math.min(100, Math.round((doneCumul / target) * 100)) : 0;
+  const abs         = vfhAbsences(vfhSchedule, fromKey, toKey);
+
+  const prorata = isProrated(user)
+    ? ` · objectif proratisé (entrée le ${fmtDisplay(entryRestrictionKey(user))}, contrat : ${fmt(contractTarget(user))} ${isCadre?'jours':'h'})`
+    : '';
+
+  // ── Détail jour par jour (uniquement les jours saisis ou en absence) ──
+  let rows = '';
+  for (let d = new Date(fromKey + 'T12:00:00'); fmtKey(d) <= toKey; d.setDate(d.getDate() + 1)) {
+    const k = fmtKey(d);
+    const e = vfhSchedule[k];
+    if (!e) continue;
+    const h = parseFloat(e.hours) || 0;
+    const type = e.type || 'normal';
+    const isAbs = !isWorkedEntry(e);
+    if (h === 0 && !isAbs) continue;
+    rows += `<tr>
+      <td style="text-align:left">${fmtDisplay(k)}</td>
+      <td style="text-align:left;text-transform:capitalize">${DAYS_FR[d.getDay()]}</td>
+      <td style="font-weight:700">${fmt(h)}</td>
+      <td>${isAbs ? '🚫 ' + type : (type === 'normal' ? '—' : type)}</td>
+      <td style="text-align:left;color:var(--g500)">${(e.note || '').replace(/</g,'&lt;')}</td>
+    </tr>`;
+  }
+  if (!rows) rows = '<tr><td colspan="5" style="padding:14px;color:var(--g500)">Aucune journée saisie sur cette période.</td></tr>';
+
+  const absHtml = Object.keys(abs).length
+    ? `<div class="card" style="margin-bottom:14px">
+         <div class="card-head"><div class="card-title">🚫 Absences sur la période (non comptées dans les heures)</div></div>
+         <div style="display:flex;gap:10px;flex-wrap:wrap">
+           ${Object.entries(abs).map(([t,v]) =>
+             `<div style="padding:8px 14px;background:var(--g100);border-radius:9px;font-size:13px">
+                <strong>${t}</strong> · ${v.jours} j (${fmt(v.heures)} h)
+              </div>`).join('')}
+         </div>
+       </div>`
+    : '';
+
+  document.getElementById('vfhResult').innerHTML = `
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-head">
+        <div class="card-title">👤 ${user.name} — du ${fmtDisplay(fromKey)} au ${fmtDisplay(toKey)}</div>
+      </div>
+      <div class="stats-row" style="margin:0">
+        <div class="stat teal">
+          <div class="stat-label">Heures réalisées sur la période</div>
+          <div class="stat-val">${fmt(donePeriode)}</div>
+          <div class="stat-sub">${unit} sur ${periode.jours} jour(s) travaillé(s)</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Cumul depuis le ${fmtDisplay(startKey)}</div>
+          <div class="stat-val">${fmt(doneCumul)}</div>
+          <div class="stat-sub">${unit} réalisées jusqu'au ${fmtDisplay(toKey)}</div>
+        </div>
+        <div class="stat ${reste < 0 ? 'green' : 'orange'}">
+          <div class="stat-label">${reste < 0 ? '🎉 Avance / récupération' : "Restant à faire sur l'exercice"}</div>
+          <div class="stat-val">${reste < 0 ? '+' + fmt(-reste) : fmt(reste)}</div>
+          <div class="stat-sub">${unit} · objectif ${fmt(target)} ${unit}</div>
+        </div>
+        <div class="stat green">
+          <div class="stat-label">Progression</div>
+          <div class="stat-val">${pct}%</div>
+          <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+        </div>
+      </div>
+      <p style="margin:12px 0 0;font-size:12.5px;color:var(--g500)">
+        Total saisi sur l'ensemble de l'exercice (jusqu'au ${fmtDisplay(vfhPeriodEndKey())}) : <strong>${fmt(doneAnnee)} ${unit}</strong>${prorata}
+      </p>
+    </div>
+    ${absHtml}
+    <div class="card">
+      <div class="card-head"><div class="card-title">📆 Détail jour par jour</div></div>
+      <div style="overflow-x:auto">
+        <table class="pp-table">
+          <thead><tr><th>Date</th><th>Jour</th><th>Heures</th><th>Type</th><th>Commentaire</th></tr></thead>
+          <tbody>${rows}</tbody>
+          <tfoot><tr><td colspan="2" style="text-align:left;font-weight:700">TOTAL PÉRIODE</td>
+            <td style="font-weight:800">${fmt(donePeriode)} ${unit}</td><td colspan="2"></td></tr></tfoot>
+        </table>
+      </div>
+    </div>`;
+  document.getElementById('vfhResult').style.display = 'block';
+}
+
 function toast(msg,type='info') {
   const c=document.getElementById('toastContainer');
   const t=document.createElement('div');

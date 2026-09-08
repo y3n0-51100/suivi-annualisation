@@ -1666,12 +1666,22 @@ body.mobile-nav-open .mobile-backdrop{display:block}
           <div class="card-head"><div class="card-title">Paramètres de contrôle</div></div>
           <div class="form-row">
             <div class="fg"><label>Collaborateur</label><select id="vfhUser"><option value="">— Sélectionnez un collaborateur —</option></select></div>
-            <div class="fg"></div>
+            <div class="fg"><label>Type de période</label>
+              <select id="vfhMode" onchange="vfhSwitchMode()">
+                <option value="dates">Par dates (jour de début / de fin)</option>
+                <option value="weeks">Par numéro de semaine</option>
+              </select>
+            </div>
           </div>
-          <div class="form-row">
+          <div class="form-row" id="vfhDatesRow">
             <div class="fg"><label>Du</label><input type="date" id="vfhFrom" min="2026-06-01" max="2027-05-31"></div>
             <div class="fg"><label>Au</label><input type="date" id="vfhTo" min="2026-06-01" max="2027-05-31"></div>
           </div>
+          <div class="form-row" id="vfhWeeksRow" style="display:none">
+            <div class="fg"><label>Semaine de début</label><select id="vfhWeekFrom" onchange="vfhSyncWeekTo()"></select></div>
+            <div class="fg"><label>Semaine de fin</label><select id="vfhWeekTo"></select></div>
+          </div>
+          <p id="vfhWeeksHint" style="display:none;margin:-4px 0 14px;font-size:12.5px;color:var(--g500)"></p>
           <div style="display:flex;gap:10px;justify-content:flex-end">
             <button class="btn btn-primary" onclick="vfhAnalyse()">🔍 Analyser</button>
           </div>
@@ -5675,8 +5685,98 @@ function initCheckSheetPage() {
     }
     from.value = a; to.value = b;
   }
+  vfhFillWeekSelects();
+  vfhSwitchMode();
   document.getElementById('vfhResult').style.display = 'none';
   vfhSchedule = {}; vfhUserId = null;
+}
+
+// ── Semaines ISO de l'exercice (le fichier siège raisonne en n° de semaine) ──
+let vfhWeekList = [];   // [{num, startKey, endKey, label}]
+
+// Numéro de semaine ISO 8601 (semaine du lundi, jeudi déterminant l'année)
+function vfhIsoWeekNum(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));  // jeudi de la semaine
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+}
+
+// Liste des semaines couvrant l'exercice, bornées au 1er et au dernier jour
+function vfhBuildWeeks() {
+  const start = vfhPeriodStartKey(), end = vfhPeriodEndKey();
+  const first = new Date(start + 'T12:00:00');
+  const cur   = new Date(first);
+  cur.setDate(cur.getDate() - ((first.getDay() + 6) % 7));   // lundi de la 1re semaine
+  const list = [];
+  while (fmtKey(cur) <= end) {
+    const monday = new Date(cur);
+    const sunday = new Date(cur); sunday.setDate(sunday.getDate() + 6);
+    const sKey = fmtKey(monday) < start ? start : fmtKey(monday);
+    const eKey = fmtKey(sunday) > end   ? end   : fmtKey(sunday);
+    const num  = vfhIsoWeekNum(monday);
+    list.push({ num, startKey: sKey, endKey: eKey,
+                label: `S${String(num).padStart(2,'0')} — du ${fmtDisplay(sKey)} au ${fmtDisplay(eKey)}` });
+    cur.setDate(cur.getDate() + 7);
+  }
+  return list;
+}
+
+function vfhFillWeekSelects() {
+  vfhWeekList = vfhBuildWeeks();
+  const opts = vfhWeekList.map((w,i) => `<option value="${i}">${w.label}</option>`).join('');
+  const a = document.getElementById('vfhWeekFrom'), b = document.getElementById('vfhWeekTo');
+  const prevA = a.value, prevB = b.value;
+  a.innerHTML = opts; b.innerHTML = opts;
+  // Sélection par défaut : la semaine en cours si elle est dans l'exercice, sinon la 1re
+  const today = fmtKey(new Date());
+  let idx = vfhWeekList.findIndex(w => today >= w.startKey && today <= w.endKey);
+  if (idx < 0) idx = 0;
+  a.value = prevA !== '' && prevA != null && vfhWeekList[prevA] ? prevA : idx;
+  b.value = prevB !== '' && prevB != null && vfhWeekList[prevB] ? prevB : a.value;
+  vfhSyncWeekTo();
+}
+
+// La semaine de fin ne peut pas précéder la semaine de début
+function vfhSyncWeekTo() {
+  const a = document.getElementById('vfhWeekFrom'), b = document.getElementById('vfhWeekTo');
+  if (parseInt(b.value) < parseInt(a.value)) b.value = a.value;
+  vfhUpdateWeeksHint();
+}
+
+function vfhUpdateWeeksHint() {
+  const hint = document.getElementById('vfhWeeksHint');
+  const wa = vfhWeekList[parseInt(document.getElementById('vfhWeekFrom').value)];
+  const wb = vfhWeekList[parseInt(document.getElementById('vfhWeekTo').value)];
+  if (!wa || !wb) { hint.textContent = ''; return; }
+  hint.textContent = `Période analysée : du ${fmtDisplay(wa.startKey)} au ${fmtDisplay(wb.endKey)}`;
+}
+
+function vfhSwitchMode() {
+  const weeks = document.getElementById('vfhMode').value === 'weeks';
+  document.getElementById('vfhDatesRow').style.display  = weeks ? 'none' : '';
+  document.getElementById('vfhWeeksRow').style.display  = weeks ? '' : 'none';
+  document.getElementById('vfhWeeksHint').style.display = weeks ? '' : 'none';
+  if (weeks) vfhUpdateWeeksHint();
+}
+
+// Bornes de la période sélectionnée selon le mode choisi ({from, to, label} ou null)
+function vfhSelectedRange() {
+  if (document.getElementById('vfhMode').value === 'weeks') {
+    const wa = vfhWeekList[parseInt(document.getElementById('vfhWeekFrom').value)];
+    const wb = vfhWeekList[parseInt(document.getElementById('vfhWeekTo').value)];
+    if (!wa || !wb) { toast('Sélectionnez les semaines à analyser.', 'error'); return null; }
+    if (wa.startKey > wb.endKey) { toast('La semaine de début doit précéder la semaine de fin.', 'error'); return null; }
+    const label = wa === wb
+      ? `semaine ${wa.num}`
+      : `semaines ${wa.num} à ${wb.num}`;
+    return { from: wa.startKey, to: wb.endKey, label };
+  }
+  const from = document.getElementById('vfhFrom').value;
+  const to   = document.getElementById('vfhTo').value;
+  if (!from || !to) { toast('Renseignez la date de début et la date de fin.', 'error'); return null; }
+  if (from > to)    { toast('La date de début doit précéder la date de fin.', 'error'); return null; }
+  return { from, to, label: '' };
 }
 
 // Cumul des heures réellement travaillées entre deux dates (bornes incluses)
@@ -5708,12 +5808,11 @@ function vfhAbsences(sched, fromKey, toKey) {
 
 async function vfhAnalyse() {
   const userId = document.getElementById('vfhUser').value;
-  const fromKey = document.getElementById('vfhFrom').value;
-  const toKey   = document.getElementById('vfhTo').value;
+  if (!userId) { toast('Sélectionnez un collaborateur.', 'error'); return; }
 
-  if (!userId)            { toast('Sélectionnez un collaborateur.', 'error'); return; }
-  if (!fromKey || !toKey) { toast('Renseignez la date de début et la date de fin.', 'error'); return; }
-  if (fromKey > toKey)    { toast('La date de début doit précéder la date de fin.', 'error'); return; }
+  const range = vfhSelectedRange();
+  if (!range) return;
+  const fromKey = range.from, toKey = range.to;
 
   const user = allUsers.find(u => u.username === userId);
   if (!user) { toast('Collaborateur introuvable.', 'error'); return; }
@@ -5727,10 +5826,10 @@ async function vfhAnalyse() {
     toast('Erreur lors du chargement du planning.', 'error'); return;
   }
 
-  vfhRender(user, fromKey, toKey);
+  vfhRender(user, fromKey, toKey, range.label);
 }
 
-function vfhRender(user, fromKey, toKey) {
+function vfhRender(user, fromKey, toKey, periodLabel) {
   const isCadre = !!user.isCadre;
   const unit    = isCadre ? 'j' : 'h';
   const conv    = v => isCadre ? v / 2 : v;   // cadre : 2 demi-journées = 1 jour
@@ -5787,7 +5886,7 @@ function vfhRender(user, fromKey, toKey) {
   document.getElementById('vfhResult').innerHTML = `
     <div class="card" style="margin-bottom:14px">
       <div class="card-head">
-        <div class="card-title">👤 ${user.name} — du ${fmtDisplay(fromKey)} au ${fmtDisplay(toKey)}</div>
+        <div class="card-title">👤 ${user.name} — ${periodLabel ? periodLabel + ' · ' : ''}du ${fmtDisplay(fromKey)} au ${fmtDisplay(toKey)}</div>
       </div>
       <div class="stats-row" style="margin:0">
         <div class="stat teal">

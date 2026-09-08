@@ -35,7 +35,8 @@ const DAYS_KEY   = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','sa
 const DOW_SHORT  = ['D','L','M','M','J','V','S'];
 const DOW_LONG   = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
 // Types décomptés comme absence (non travaillés) — identique à l'outil web
-const ABS_EXCL = new Set(['CP','CP Ancienneté','Récupération','Événement Familial','Autre']);
+// CP Ancienneté, Maladie et Formation comptent comme travail effectif
+const ABS_EXCL = new Set(['CP','Récupération','Événement Familial','Autre']);
 
 const TYPES = {
   'CP':                 {ic:'sun',   cls:'i-amber',  unit:'jour(s)', hint:'Jours ouvrés posés (lundi → samedi)'},

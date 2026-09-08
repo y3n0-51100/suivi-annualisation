@@ -3045,7 +3045,8 @@ function updateN(k, v) {
 // Types d'absence : ne comptent PAS comme heures travaillées
 // Maladie compte dans les heures travaillées (maintenu par l'employeur)
 // Formation compte dans les heures travaillées (maintenu par l'employeur)
-const ABSENCE_TYPES_EXCL = new Set(['CP','CP Ancienneté','Récupération','Événement Familial','Autre']);
+// CP Ancienneté compte dans les heures travaillées (travail effectif)
+const ABSENCE_TYPES_EXCL = new Set(['CP','Récupération','Événement Familial','Autre']);
 
 function isWorkedEntry(d) {
   return !ABSENCE_TYPES_EXCL.has(d?.type);
@@ -4630,7 +4631,7 @@ async function renderTeamStats() {
       switch(d.type) {
         case 'Maladie':            joursMaladie++;  heuresMaladie+=h;  heuresTravaillees+=h; break;
         case 'CP':                 joursCP++;       break;
-        case 'CP Ancienneté':      joursAnc++;      break;
+        case 'CP Ancienneté':      joursAnc++;      heuresTravaillees+=h; break;
         case 'Récupération':       joursRecup++;    break;
         case 'Événement Familial': joursFam++;      break;
         case 'Formation':          joursFormation++;heuresFormation+=h;heuresTravaillees+=h; break;
@@ -7143,7 +7144,7 @@ async function renderAnnualOverview() {
       switch(d.type) {
         case 'Maladie':            joursMaladie++; heuresMaladie+=h; totalWorked+=h; if(h>0)totalDaysWorked+=isCadre?(h/2):0; break;
         case 'CP':                 joursCP++;       break;
-        case 'CP Ancienneté':      joursAnc++;      break;
+        case 'CP Ancienneté':      joursAnc++;      totalWorked+=h; if(h>0)totalDaysWorked+=isCadre?(h/2):0; break;
         case 'Récupération':       joursRecup++;    break;
         case 'Événement Familial': joursFam++;      break;
         case 'Formation':          joursFormation++; heuresFormation+=h; totalWorked+=h; if(h>0)totalDaysWorked+=isCadre?(h/2):0; break;
@@ -7276,7 +7277,7 @@ function _computeStats(u, days) {
     switch(d.type) {
       case 'Maladie':            joursMaladie++; totalWorked+=h; if(h>0)totalDaysWorked+=isCadre?(h/2):0; break;
       case 'CP':                 joursCP++; break;
-      case 'CP Ancienneté':      joursAnc++; break;
+      case 'CP Ancienneté':      joursAnc++; totalWorked+=h; if(h>0)totalDaysWorked+=isCadre?(h/2):0; break;
       case 'Récupération':       joursRecup++; break;
       case 'Événement Familial': joursFam++; break;
       case 'Formation':          joursFormation++; totalWorked+=h; if(h>0)totalDaysWorked+=isCadre?(h/2):0; break;

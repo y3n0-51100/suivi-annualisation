@@ -1,4 +1,4 @@
-const CACHE_NAME = 'suivi-annualisation-v4';
+const CACHE_NAME = 'suivi-annualisation-v5';
 
 const SHELL_ASSETS = [
   './',

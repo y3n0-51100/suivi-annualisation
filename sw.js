@@ -1,66 +1,41 @@
-const CACHE_NAME = 'suivi-annualisation-v5';
-
-const SHELL_ASSETS = [
-  './',
-  './index.html',
-  './app.html',
-  './app.js',
-  './app.webmanifest',
-  './manifest.json',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  './icons/icon-192-maskable.png',
-  './icons/icon-512-maskable.png',
-  './icons/apple-touch-icon.png',
-  './icons/favicon.png',
-  './icons/favicon-32.png'
+/* Service worker — Suivi Annualisation v3
+   • Fichiers de l'application (HTML, JS, CSS) : réseau d'abord, cache en secours
+     → toujours la dernière version en ligne, coquille disponible hors connexion.
+   • Icônes et police : cache d'abord.
+   • Tout le reste (Firebase, e-mails, CDN) n'est jamais intercepté. */
+const CACHE = 'suivi-annualisation-v3.0.0';
+const SHELL = [
+  './', './index.html', './app.html', './manifest.json', './app.webmanifest',
+  './css/app.css', './fonts/inter-latin.woff2',
+  './js/app.js', './js/backend.js', './js/config.js', './js/core.js', './js/faq.js', './js/nav.js', './js/store.js', './js/ui.js',
+  './js/views/absences.js', './js/views/alerts.js', './js/views/comms.js', './js/views/dashboard.js', './js/views/help.js',
+  './js/views/people.js', './js/views/planning.js', './js/views/profile.js', './js/views/reports.js', './js/views/requests.js',
+  './js/views/settings.js', './js/views/shared.js', './js/views/team.js', './js/views/van.js',
+  './icons/icon-192.png', './icons/icon-512.png', './icons/icon-192-maskable.png', './icons/icon-512-maskable.png',
+  './icons/apple-touch-icon.png', './icons/favicon.png', './icons/favicon-32.png'
 ];
 
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(SHELL_ASSETS))
-      .then(() => self.skipWaiting())
-  );
+self.addEventListener('install', event => {
+  event.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
 });
-
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
-      ))
-      .then(() => self.clients.claim())
-  );
+self.addEventListener('activate', event => {
+  event.waitUntil(caches.keys()
+    .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+    .then(() => self.clients.claim()));
 });
-
-// Ne gère que les requêtes GET same-origin de la coquille applicative.
-// Tout le reste (Firebase, CDN, polices) part directement au réseau,
-// pour ne jamais servir une donnée ou une lib périmée depuis le cache.
-self.addEventListener('fetch', (event) => {
+self.addEventListener('fetch', event => {
   const req = event.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) {
+  const url = new URL(req.url);
+  if (req.method !== 'GET' || url.origin !== self.location.origin) return;
+  const isStatic = /\/(icons|fonts)\//.test(url.pathname);
+  if (isStatic) {
+    event.respondWith(caches.match(req).then(hit => hit || fetch(req).then(res => {
+      const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); return res;
+    })));
     return;
   }
-
-  const isHTML = req.mode === 'navigate' || req.headers.get('accept')?.includes('text/html');
-
-  if (isHTML) {
-    // Network-first : toujours la dernière version de l'app quand la connexion est là.
-    event.respondWith(
-      fetch(req)
-        .then((res) => {
-          const clone = res.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
-          return res;
-        })
-        .catch(() => caches.match(req).then((res) => res || caches.match('./index.html')))
-    );
-    return;
-  }
-
-  // Cache-first pour les assets statiques de la coquille (icônes, manifest).
-  event.respondWith(
-    caches.match(req).then((cached) => cached || fetch(req))
-  );
+  event.respondWith(fetch(req).then(res => {
+    if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
+    return res;
+  }).catch(() => caches.match(req, { ignoreSearch: true }).then(hit => hit || caches.match('./index.html'))));
 });

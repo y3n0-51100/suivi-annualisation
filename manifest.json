@@ -1,15 +1,22 @@
 {
   "name": "Suivi Annualisation",
   "short_name": "Annualisation",
-  "description": "Suivi des 1607 heures, plannings et congés — réservé aux collaborateurs.",
+  "description": "Plannings, compteur des 1607 heures et absences — réservé aux collaborateurs.",
+  "id": "./index.html",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "orientation": "portrait-primary",
-  "background_color": "#0F1E38",
-  "theme_color": "#1B2A4A",
+  "orientation": "any",
+  "background_color": "#0E1A30",
+  "theme_color": "#0E1A30",
   "lang": "fr",
   "dir": "ltr",
+  "categories": ["business", "productivity"],
+  "shortcuts": [
+    { "name": "Mon planning", "url": "./index.html#/planning" },
+    { "name": "Mes absences", "url": "./index.html#/absences" },
+    { "name": "Planning équipe", "url": "./index.html#/team" }
+  ],
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },

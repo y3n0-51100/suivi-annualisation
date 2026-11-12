@@ -1,19 +1,58 @@
 {
   "name": "Annualisation — Mon planning",
   "short_name": "Annualisation",
-  "description": "Planning, compteur d'heures et demandes d'absence — application des collaborateurs.",
+  "description": "Plannings, compteur des 1607 heures et absences — réservé aux collaborateurs.",
+  "id": "./app.html",
   "start_url": "./app.html",
   "scope": "./",
   "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#0F1E38",
-  "theme_color": "#0F1E38",
+  "orientation": "any",
+  "background_color": "#0E1A30",
+  "theme_color": "#0E1A30",
   "lang": "fr",
   "dir": "ltr",
+  "categories": [
+    "business",
+    "productivity"
+  ],
+  "shortcuts": [
+    {
+      "name": "Mon planning",
+      "url": "./index.html#/planning"
+    },
+    {
+      "name": "Mes absences",
+      "url": "./index.html#/absences"
+    },
+    {
+      "name": "Planning équipe",
+      "url": "./index.html#/team"
+    }
+  ],
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-192-maskable.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
-    { "src": "icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-192-maskable.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }
